@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { F, initials } from '../format';
+import { colors, cardShadowSm, cardShadowMd, cardShadowLg } from '../tokens';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import Toast from '../components/Toast';
+import BottomSheet from '../components/BottomSheet';
 
 const TABS = [['Dashboard', 'dashboard'], ['Villages', 'villages'], ['Agents', 'agents'], ['Customers', 'customers'], ['More', 'more']];
 const MORE_SCREENS = ['given', 'collections', 'expenses', 'losses', 'reports'];
@@ -25,7 +28,7 @@ export default function AdminApp({ onSwitchRole }) {
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const flash = (msg) => setToast(msg) || setTimeout(() => setToast(''), 2200);
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
 
   const loadAll = () =>
     Promise.all([
@@ -86,152 +89,169 @@ export default function AdminApp({ onSwitchRole }) {
     return map;
   }, [expenses]);
 
-  if (loading || !summary) return <Centered>Loading…</Centered>;
+  if (loading || !summary) return <Centered><ActivityIndicator color={colors.brandNavy} /></Centered>;
 
   const maxVillage = Math.max(1, ...villages.map((v) => v.given));
   const maxBar = Math.max(1, ...summary.weekBars.map((b) => b.amount));
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#f5f5f5', position: 'relative', overflow: 'hidden' }}>
+    <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
       <Header
         title={TITLES[screen]}
         subtitle="Owner · live data"
         right={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, background: 'rgba(255,255,255,.12)', borderRadius: 9999, padding: '6px 11px', whiteSpace: 'nowrap' }}>{agents.length} agents</div>
-            <div onClick={onSwitchRole} style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', cursor: 'pointer' }}>Switch</div>
-          </div>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ backgroundColor: 'rgba(255,255,255,.12)', borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 11 }}>
+              <Text style={{ color: '#fff', fontSize: 11.5, fontWeight: '600' }}>{agents.length} agents</Text>
+            </View>
+            <TouchableOpacity onPress={onSwitchRole}><Text style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>Switch</Text></TouchableOpacity>
+          </View>
         }
       />
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
         {screen === 'dashboard' && (
-          <div style={{ padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ background: 'var(--brand-navy)', color: '#fff', borderRadius: 12, padding: 18, boxShadow: 'var(--shadow-lg)' }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,.6)' }}>Money outside right now</div>
-              <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1, marginTop: 6 }}>{F(summary.outside)}</div>
-              <div style={{ display: 'flex', gap: 16, marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,.15)' }}>
-                <div style={{ flex: 1 }}><div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.6)', fontWeight: 500 }}>Given out</div><div style={{ fontSize: 19, fontWeight: 700, marginTop: 2 }}>{F(summary.given)}</div></div>
-                <div style={{ flex: 1 }}><div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.6)', fontWeight: 500 }}>Collected</div><div style={{ fontSize: 19, fontWeight: 700, marginTop: 2, color: '#a5d6a7' }}>{F(summary.collected)}</div></div>
-              </div>
-            </div>
+          <View style={{ padding: 16, gap: 14 }}>
+            <View style={{ backgroundColor: colors.brandNavy, borderRadius: 12, padding: 18, ...cardShadowLg }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,.6)' }}>Money outside right now</Text>
+              <Text style={{ fontSize: 38, fontWeight: '700', color: '#fff', marginTop: 6 }}>{F(summary.outside)}</Text>
+              <View style={{ flexDirection: 'row', gap: 16, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.15)' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11.5, color: 'rgba(255,255,255,.6)', fontWeight: '500' }}>Given out</Text>
+                  <Text style={{ fontSize: 19, fontWeight: '700', color: '#fff', marginTop: 2 }}>{F(summary.given)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11.5, color: 'rgba(255,255,255,.6)', fontWeight: '500' }}>Collected</Text>
+                  <Text style={{ fontSize: 19, fontWeight: '700', color: '#a5d6a7', marginTop: 2 }}>{F(summary.collected)}</Text>
+                </View>
+              </View>
+            </View>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <DashTile label="Today's collection" value={F(summary.todayCollected)} sub={`of ${F(summary.todayExpected)} expected`} color="#2e7d32" />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              <DashTile label="Today's collection" value={F(summary.todayCollected)} sub={`of ${F(summary.todayExpected)} expected`} color={colors.success800} />
               <DashTile label="This week" value={F(summary.weekTotal)} sub="last 7 days" />
-              <DashTile label="Pending now" value={F(summary.pendingNow)} sub="unpaid today" color="#e65100" />
+              <DashTile label="Pending now" value={F(summary.pendingNow)} sub="unpaid today" color={colors.warning900} />
               <DashTile label="Customers" value={String(summary.customerCount)} sub={`${summary.villageCount} villages`} />
               <DashTile label="Expenses" value={F(summary.expenses)} sub="this month" />
-              <DashTile label="Losses" value={F(summary.losses)} sub={`${summary.lossCount} customers`} color="#c62828" />
-            </div>
+              <DashTile label="Losses" value={F(summary.losses)} sub={`${summary.lossCount} customers`} color={colors.error800} />
+            </View>
 
-            <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>Collection last 7 days</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--brand-navy)' }}>{F(summary.weekTotal)}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 110, marginTop: 16 }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 15, fontWeight: '600' }}>Collection last 7 days</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brandNavy }}>{F(summary.weekTotal)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 110, marginTop: 16 }}>
                 {summary.weekBars.map((b, i) => (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,.5)' }}>{b.amount ? Math.round(b.amount / 1000) + 'k' : '—'}</div>
-                    <div style={{ width: '100%', borderRadius: '4px 4px 0 0', minHeight: 4, height: `${Math.round((b.amount / maxBar) * 100)}%`, background: b.amount ? '#1e88e5' : '#eeeeee' }} />
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: 'rgba(0,0,0,.6)' }}>{b.day}</div>
-                  </div>
+                  <View key={i} style={{ flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(0,0,0,.5)' }}>{b.amount ? Math.round(b.amount / 1000) + 'k' : '—'}</Text>
+                    <View style={{ width: '100%', borderRadius: 4, minHeight: 4, height: `${Math.round((b.amount / maxBar) * 100)}%`, backgroundColor: b.amount ? colors.brandPrimary600 : colors.neutral200 }} />
+                    <Text style={{ fontSize: 10.5, fontWeight: '600', color: 'rgba(0,0,0,.6)' }}>{b.day}</Text>
+                  </View>
                 ))}
-              </div>
-            </div>
+              </View>
+            </View>
 
-            <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>Village comparison</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+              <Text style={{ fontSize: 15, fontWeight: '600' }}>Village comparison</Text>
+              <View style={{ gap: 12, marginTop: 14 }}>
                 {villages.map((v) => (
-                  <div key={v.name}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 500, color: 'rgba(0,0,0,.75)' }}>
-                      <span>{v.name}</span><span style={{ color: 'rgba(0,0,0,.5)' }}>{Math.round(v.given / 1000)}k / {Math.round(v.given / 1000)}k</span>
-                    </div>
-                    <div style={{ height: 8, borderRadius: 9999, background: '#eeeeee', marginTop: 6, overflow: 'hidden', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 9999, background: '#1e88e5', width: `${Math.round((v.given / maxVillage) * 100)}%` }} />
-                    </div>
-                  </div>
+                  <View key={v.name}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>{v.name}</Text>
+                      <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.5)' }}>{Math.round(v.given / 1000)}k / {Math.round(v.given / 1000)}k</Text>
+                    </View>
+                    <View style={{ height: 8, borderRadius: 9999, backgroundColor: colors.neutral200, marginTop: 6, overflow: 'hidden' }}>
+                      <View style={{ height: '100%', borderRadius: 9999, backgroundColor: colors.brandPrimary600, width: `${Math.round((v.given / maxVillage) * 100)}%` }} />
+                    </View>
+                  </View>
                 ))}
-              </div>
-            </div>
-          </div>
+              </View>
+            </View>
+          </View>
         )}
 
         {screen === 'villages' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>Villages</div>
+          <View style={{ padding: 16, gap: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600' }}>Villages</Text>
             {villages.map((v) => (
-              <div key={v.id} style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 17, fontWeight: 700 }}>{v.name}</div>
-                    <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.customerCount} customers</div>
-                  </div>
-                  <div onClick={() => setAssignFor(v.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #e0e0e0', borderRadius: 9999, padding: '6px 10px 6px 6px', cursor: 'pointer', flex: 'none' }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 9999, background: '#e3f2fd', color: '#1565c0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{initials(v.agentName)}</div>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(0,0,0,.75)', whiteSpace: 'nowrap' }}>{v.agentName}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: '#eeeeee', borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
+              <View key={v.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 17, fontWeight: '700' }}>{v.name}</Text>
+                    <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.customerCount} customers</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setAssignFor(v.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.neutral300, borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 10 }}>
+                    <View style={{ width: 26, height: 26, borderRadius: 9999, backgroundColor: colors.brandPrimary50, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brandPrimary800 }}>{initials(v.agentName)}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12.5, fontWeight: '600', color: 'rgba(0,0,0,.75)' }}>{v.agentName}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
                   <Tile label="Given" value={F(v.given)} />
-                  <Tile label="Collected" value={F(v.collected)} color="#2e7d32" />
-                  <Tile label="Pending" value={F(v.pending)} color="#e65100" />
-                </div>
-              </div>
+                  <Tile label="Collected" value={F(v.collected)} color={colors.success800} />
+                  <Tile label="Pending" value={F(v.pending)} color={colors.warning900} />
+                </View>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'agents' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>Agents</div>
+          <View style={{ padding: 16, gap: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600' }}>Agents</Text>
             {agents.map((a) => (
-              <div key={a.id} style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 9999, background: '#e3f2fd', color: '#1565c0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flex: 'none' }}>{initials(a.name)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 16.5, fontWeight: 700 }}>{a.name}</div>
-                    <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{a.villages.join(', ') || 'No village assigned'}</div>
-                  </div>
-                  <div onClick={() => toggleAgent(a)} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 9999, padding: '5px 11px', cursor: 'pointer', background: a.active ? '#e8f5e9' : '#f5f5f5', color: a.active ? '#2e7d32' : 'rgba(0,0,0,.5)' }}>{a.active ? 'Active' : 'Inactive'}</div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#eeeeee', borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
-                  <Tile label="Collected this week" value={F(a.collectedThisWeek)} color="#2e7d32" />
-                  <Tile label="Pending" value={F(a.pending)} color="#e65100" />
+              <View key={a.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 9999, backgroundColor: colors.brandPrimary50, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brandPrimary800 }}>{initials(a.name)}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 16.5, fontWeight: '700' }}>{a.name}</Text>
+                    <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{a.villages.join(', ') || 'No village assigned'}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => toggleAgent(a)} style={{ borderRadius: 9999, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: a.active ? colors.success50 : colors.neutral100 }}>
+                    <Text style={{ fontSize: 11.5, fontWeight: '700', color: a.active ? colors.success800 : 'rgba(0,0,0,.5)' }}>{a.active ? 'Active' : 'Inactive'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
+                  <Tile label="Collected this week" value={F(a.collectedThisWeek)} color={colors.success800} />
+                  <Tile label="Pending" value={F(a.pending)} color={colors.warning900} />
                   <Tile label="Customers" value={String(a.customerCount)} />
                   <Tile label="Expenses" value={F(a.expenses)} />
-                </div>
-              </div>
+                </View>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'customers' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>Customers</div>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, village or agent" style={inputStyle} />
+          <View style={{ padding: 16, gap: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600' }}>Customers</Text>
+            <TextInput value={search} onChangeText={setSearch} placeholder="Search name, village or agent" style={inputStyle} />
             {filteredCustomers.map((c) => (
-              <div key={c.id} style={{ background: '#fff', borderRadius: 10, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 9999, background: '#eeeeee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,.6)', flex: 'none' }}>{initials(c.name)}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{c.village}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--brand-navy)' }}>{F(c.remaining)}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: c.isDone ? '#2e7d32' : c.missedWeeks.length ? '#c62828' : 'rgba(0,0,0,.5)' }}>
+              <View key={c.id} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, ...cardShadowSm }}>
+                <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.neutral200, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(0,0,0,.6)' }}>{initials(c.name)}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15.5, fontWeight: '600' }}>{c.name}</Text>
+                  <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{c.village}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brandNavy }}>{F(c.remaining)}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: c.isDone ? colors.success800 : c.missedWeeks.length ? colors.error800 : 'rgba(0,0,0,.5)' }}>
                     {c.isDone ? 'Done' : c.missedWeeks.length ? `Missed ${c.missedWeeks.length}` : 'On time'}
-                  </div>
-                </div>
-              </div>
+                  </Text>
+                </View>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'more' && (
-          <div style={{ padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <View style={{ padding: 16, gap: 10 }}>
             {[
               { label: 'Money given', sub: `${F(summary.given)} total`, key: 'given' },
               { label: 'Collections', sub: `${F(summary.weekTotal)} this week`, key: 'collections' },
@@ -239,248 +259,247 @@ export default function AdminApp({ onSwitchRole }) {
               { label: 'Losses', sub: `${F(summary.losses)} not recovered`, key: 'losses' },
               { label: 'Reports', sub: 'Weekly and monthly summary', key: 'reports' },
             ].map((m) => (
-              <div key={m.key} onClick={() => go(m.key)} style={{ background: '#fff', borderRadius: 10, padding: 16, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>{m.label}</div>
-                  <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{m.sub}</div>
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 300, color: 'rgba(0,0,0,.3)' }}>›</div>
-              </div>
+              <TouchableOpacity key={m.key} onPress={() => go(m.key)} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, ...cardShadowSm }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600' }}>{m.label}</Text>
+                  <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{m.sub}</Text>
+                </View>
+                <Text style={{ fontSize: 22, fontWeight: '300', color: 'rgba(0,0,0,.3)' }}>›</Text>
+              </TouchableOpacity>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'given' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BackArrow onClick={() => go('more')} />
-              <div style={{ fontSize: 18, fontWeight: 600 }}>Money given</div>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 10, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: 500 }}>Given out total</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--brand-navy)', marginTop: 2 }}>{F(summary.given)}</div>
-            </div>
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('more')} />
+              <Text style={{ fontSize: 18, fontWeight: '600' }}>Money given</Text>
+            </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 10, padding: 16, ...cardShadowSm }}>
+              <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: '500' }}>Given out total</Text>
+              <Text style={{ fontSize: 28, fontWeight: '700', color: colors.brandNavy, marginTop: 2 }}>{F(summary.given)}</Text>
+            </View>
             {[...customers].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).map((c) => (
-              <div key={c.id} style={{ background: '#fff', borderRadius: 10, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{F(c.weekly)} weekly · {c.totalWeeks} weeks</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>{F(c.given)}</div>
-                </div>
-              </div>
+              <View key={c.id} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, ...cardShadowSm }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15.5, fontWeight: '600' }}>{c.name}</Text>
+                  <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{F(c.weekly)} weekly · {c.totalWeeks} weeks</Text>
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: '700' }}>{F(c.given)}</Text>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'collections' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BackArrow onClick={() => go('more')} />
-              <div style={{ fontSize: 18, fontWeight: 600 }}>Collections</div>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 14, boxShadow: 'var(--shadow-sm)' }}>
-              <Stat label="Today" value={F(summary.todayCollected)} color="#2e7d32" />
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('more')} />
+              <Text style={{ fontSize: 18, fontWeight: '600' }}>Collections</Text>
+            </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', gap: 14, ...cardShadowSm }}>
+              <Stat label="Today" value={F(summary.todayCollected)} color={colors.success800} />
               <Stat label="This week" value={F(summary.weekTotal)} />
-              <Stat label="Pending" value={F(summary.pendingNow)} color="#e65100" />
-            </div>
+              <Stat label="Pending" value={F(summary.pendingNow)} color={colors.warning900} />
+            </View>
             {agents.map((a) => (
-              <div key={a.id} style={{ background: '#fff', borderRadius: 10, padding: 14, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{a.name}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--brand-navy)' }}>{F(a.collectedThisWeek)}</div>
-                </div>
-                <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{a.customerCount} customers · {F(a.pending)} pending</div>
-                <div style={{ height: 8, borderRadius: 9999, background: '#eeeeee', marginTop: 10, overflow: 'hidden', position: 'relative' }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 9999, background: '#43a047', width: `${Math.round((a.collectedThisWeek / Math.max(1, a.collectedThisWeek + a.pending)) * 100)}%` }} />
-                </div>
-              </div>
+              <View key={a.id} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, ...cardShadowSm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600' }}>{a.name}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.brandNavy }}>{F(a.collectedThisWeek)}</Text>
+                </View>
+                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{a.customerCount} customers · {F(a.pending)} pending</Text>
+                <View style={{ height: 8, borderRadius: 9999, backgroundColor: colors.neutral200, marginTop: 10, overflow: 'hidden' }}>
+                  <View style={{ height: '100%', borderRadius: 9999, backgroundColor: colors.success600, width: `${Math.round((a.collectedThisWeek / Math.max(1, a.collectedThisWeek + a.pending)) * 100)}%` }} />
+                </View>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'expenses' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BackArrow onClick={() => go('more')} />
-              <div style={{ fontSize: 18, fontWeight: 600 }}>Expenses</div>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 10, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: 500 }}>Total</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--brand-navy)', marginTop: 2 }}>{F(summary.expenses)}</div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('more')} />
+              <Text style={{ fontSize: 18, fontWeight: '600' }}>Expenses</Text>
+            </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 10, padding: 16, ...cardShadowSm }}>
+              <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: '500' }}>Total</Text>
+              <Text style={{ fontSize: 28, fontWeight: '700', color: colors.brandNavy, marginTop: 2 }}>{F(summary.expenses)}</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
                 {Object.entries(expByCategory).map(([label, value]) => (
-                  <div key={label} style={{ flex: 1, background: '#f5f5f5', borderRadius: 8, padding: '10px 8px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'rgba(0,0,0,.55)', fontWeight: 500 }}>{label}</div>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>{F(value)}</div>
-                  </div>
+                  <View key={label} style={{ flex: 1, backgroundColor: colors.neutral100, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, color: 'rgba(0,0,0,.55)', fontWeight: '500' }}>{label}</Text>
+                    <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 2 }}>{F(value)}</Text>
+                  </View>
                 ))}
-              </div>
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, padding: '0 2px', color: 'rgba(0,0,0,.7)' }}>By agent</div>
+              </View>
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: 'rgba(0,0,0,.7)' }}>By agent</Text>
             {Object.entries(expByAgent).map(([name, value]) => (
-              <div key={name} style={{ background: '#fff', borderRadius: 10, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600 }}>{name}</div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{F(value)}</div>
-              </div>
+              <View key={name} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, ...cardShadowSm }}>
+                <Text style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: '600' }}>{name}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700' }}>{F(value)}</Text>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'losses' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BackArrow onClick={() => go('more')} />
-              <div style={{ fontSize: 18, fontWeight: 600, flex: 1 }}>Losses</div>
-              <div onClick={() => setLossOpen(true)} style={{ background: '#c62828', color: '#fff', borderRadius: 8, padding: '9px 13px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>+ Record loss</div>
-            </div>
-            <div style={{ background: '#ffebee', border: '1px solid #ef9a9a', borderRadius: 10, padding: 16 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: '#c62828' }}>Total money not recovered</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#b71c1c', marginTop: 2 }}>{F(summary.losses)}</div>
-              <div style={{ fontSize: 12, color: '#c62828', marginTop: 2 }}>{losses.length} customers · {summary.given ? Math.round((summary.losses / summary.given) * 100) : 0}% of money given</div>
-            </div>
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('more')} />
+              <Text style={{ fontSize: 18, fontWeight: '600', flex: 1 }}>Losses</Text>
+              <TouchableOpacity onPress={() => setLossOpen(true)} style={{ backgroundColor: colors.error800, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 13 }}>
+                <Text style={{ color: '#fff', fontSize: 13.5, fontWeight: '600' }}>+ Record loss</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ backgroundColor: colors.error50, borderWidth: 1, borderColor: colors.error200, borderRadius: 10, padding: 16 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.error800 }}>Total money not recovered</Text>
+              <Text style={{ fontSize: 28, fontWeight: '700', color: colors.error900, marginTop: 2 }}>{F(summary.losses)}</Text>
+              <Text style={{ fontSize: 12, color: colors.error800, marginTop: 2 }}>{losses.length} customers · {summary.given ? Math.round((summary.losses / summary.given) * 100) : 0}% of money given</Text>
+            </View>
             {losses.map((l) => (
-              <div key={l.id} style={{ background: '#fff', borderRadius: 10, padding: 14, boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 600 }}>{l.customer_name}</div>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: '#c62828' }}>{F(l.remaining - l.recovered)}</div>
-                </div>
-                <div style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{l.village} · {l.agent_name} · recovered {F(l.recovered)} of {F(l.remaining)}</div>
-                <div style={{ fontSize: 13, color: 'rgba(0,0,0,.7)', marginTop: 8, background: '#fafafa', borderRadius: 6, padding: '9px 11px' }}>{l.reason}</div>
-              </div>
+              <View key={l.id} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, ...cardShadowSm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 15.5, fontWeight: '600' }}>{l.customer_name}</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: colors.error800 }}>{F(l.remaining - l.recovered)}</Text>
+                </View>
+                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{l.village} · {l.agent_name} · recovered {F(l.recovered)} of {F(l.remaining)}</Text>
+                <View style={{ marginTop: 8, backgroundColor: colors.neutral50, borderRadius: 6, paddingVertical: 9, paddingHorizontal: 11 }}>
+                  <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.7)' }}>{l.reason}</Text>
+                </View>
+              </View>
             ))}
-          </div>
+          </View>
         )}
 
         {screen === 'reports' && (
-          <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BackArrow onClick={() => go('more')} />
-              <div style={{ fontSize: 18, fontWeight: 600 }}>Reports</div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('more')} />
+              <Text style={{ fontSize: 18, fontWeight: '600' }}>Reports</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
               {['This week', 'This month', 'This year'].map((r) => (
-                <div key={r} onClick={() => setRange(r)} style={{ flex: 1, textAlign: 'center', borderRadius: 6, padding: '10px 4px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: range === r ? 'var(--brand-navy)' : '#fff', color: range === r ? '#fff' : 'rgba(0,0,0,.65)' }}>{r}</div>
+                <TouchableOpacity key={r} onPress={() => setRange(r)} style={{ flex: 1, alignItems: 'center', borderRadius: 6, paddingVertical: 10, backgroundColor: range === r ? colors.brandNavy : '#fff' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: range === r ? '#fff' : 'rgba(0,0,0,.65)' }}>{r}</Text>
+                </TouchableOpacity>
               ))}
-            </div>
-            <div style={{ background: '#fff', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>{range} summary</div>
-              <LedgerRow label="Money given out" value={F(summary.given)} color="var(--brand-navy)" />
-              <LedgerRow label="Total to collect" value={F(summary.toCollect)} color="#1565c0" />
-              <LedgerRow label="Collected so far" value={F(summary.collected)} color="#2e7d32" />
-              <LedgerRow label="Still outside" value={F(summary.outside)} color="#e65100" />
+            </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+              <Text style={{ fontSize: 15, fontWeight: '600' }}>{range} summary</Text>
+              <LedgerRow label="Money given out" value={F(summary.given)} color={colors.brandNavy} />
+              <LedgerRow label="Total to collect" value={F(summary.toCollect)} color={colors.brandPrimary800} />
+              <LedgerRow label="Collected so far" value={F(summary.collected)} color={colors.success800} />
+              <LedgerRow label="Still outside" value={F(summary.outside)} color={colors.warning900} />
               <LedgerRow label="Expenses" value={F(summary.expenses)} color="rgba(0,0,0,.6)" />
-              <LedgerRow label="Losses" value={F(summary.losses)} color="#c62828" />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0 2px' }}>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>Net result</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--brand-navy)' }}>{F(summary.net)}</div>
-              </div>
-            </div>
-          </div>
+              <LedgerRow label="Losses" value={F(summary.losses)} color={colors.error800} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700' }}>Net result</Text>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: colors.brandNavy }}>{F(summary.net)}</Text>
+              </View>
+            </View>
+          </View>
         )}
-      </div>
+      </ScrollView>
 
       <BottomNav tabs={TABS} active={activeTab} onChange={go} />
 
-      {assignFor && (
-        <BottomSheet onClose={() => setAssignFor(null)}>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Agent for {villages.find((v) => v.id === assignFor)?.name}</div>
-          <div style={{ fontSize: 13, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>Pick who collects here</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-            {agents.map((a) => {
-              const current = villages.find((v) => v.id === assignFor)?.agentId === a.id;
-              return (
-                <div key={a.id} onClick={() => assignAgent(a.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1px solid', borderRadius: 10, padding: '13px 14px', cursor: 'pointer', background: current ? '#e3f2fd' : '#fff', borderColor: current ? '#1e88e5' : '#e0e0e0' }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 9999, background: '#e3f2fd', color: '#1565c0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, flex: 'none' }}>{initials(a.name)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{a.name}</div>
-                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,.55)' }}>{a.customerCount} customers · {a.active ? 'active' : 'inactive'}</div>
-                  </div>
-                  {current && <div style={{ fontSize: 11.5, fontWeight: 700, color: '#1565c0' }}>Current</div>}
-                </div>
-              );
-            })}
-          </div>
-        </BottomSheet>
-      )}
+      <BottomSheet visible={!!assignFor} onClose={() => setAssignFor(null)}>
+        <Text style={{ fontSize: 18, fontWeight: '700' }}>Agent for {villages.find((v) => v.id === assignFor)?.name}</Text>
+        <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>Pick who collects here</Text>
+        <View style={{ gap: 8, marginTop: 14 }}>
+          {agents.map((a) => {
+            const current = villages.find((v) => v.id === assignFor)?.agentId === a.id;
+            return (
+              <TouchableOpacity key={a.id} onPress={() => assignAgent(a.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 10, padding: 14, backgroundColor: current ? colors.brandPrimary50 : '#fff', borderColor: current ? colors.brandPrimary600 : colors.neutral300 }}>
+                <View style={{ width: 34, height: 34, borderRadius: 9999, backgroundColor: colors.brandPrimary50, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.brandPrimary800 }}>{initials(a.name)}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600' }}>{a.name}</Text>
+                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.55)' }}>{a.customerCount} customers · {a.active ? 'active' : 'inactive'}</Text>
+                </View>
+                {current && <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.brandPrimary800 }}>Current</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BottomSheet>
 
-      {lossOpen && (
-        <BottomSheet onClose={() => setLossOpen(false)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Record a loss</div>
-            <input value={lossForm.name} onChange={(e) => setLossForm((f) => ({ ...f, name: e.target.value }))} placeholder="Customer name" style={inputStyle} />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input value={lossForm.remaining} onChange={(e) => setLossForm((f) => ({ ...f, remaining: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="Remaining ₹" inputMode="numeric" style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
-              <input value={lossForm.recovered} onChange={(e) => setLossForm((f) => ({ ...f, recovered: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="Recovered ₹" inputMode="numeric" style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
-            </div>
-            <input value={lossForm.reason} onChange={(e) => setLossForm((f) => ({ ...f, reason: e.target.value }))} placeholder="Reason" style={inputStyle} />
-            <div style={{ background: '#ffebee', borderRadius: 8, padding: 13, display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#c62828' }}>
-              <span>Loss amount</span>
-              <strong style={{ fontSize: 17, color: '#b71c1c' }}>{F(Math.max(0, (parseInt(lossForm.remaining, 10) || 0) - (parseInt(lossForm.recovered, 10) || 0)))}</strong>
-            </div>
-            <div onClick={saveLoss} style={{ textAlign: 'center', background: '#c62828', color: '#fff', borderRadius: 10, padding: 15, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>Save loss</div>
-          </div>
-        </BottomSheet>
-      )}
+      <BottomSheet visible={lossOpen} onClose={() => setLossOpen(false)}>
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700' }}>Record a loss</Text>
+          <TextInput value={lossForm.name} onChangeText={(t) => setLossForm((f) => ({ ...f, name: t }))} placeholder="Customer name" style={inputStyle} />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TextInput value={lossForm.remaining} onChangeText={(t) => setLossForm((f) => ({ ...f, remaining: t.replace(/[^0-9]/g, '') }))} placeholder="Remaining ₹" keyboardType="numeric" style={{ ...inputStyle, flex: 1 }} />
+            <TextInput value={lossForm.recovered} onChangeText={(t) => setLossForm((f) => ({ ...f, recovered: t.replace(/[^0-9]/g, '') }))} placeholder="Recovered ₹" keyboardType="numeric" style={{ ...inputStyle, flex: 1 }} />
+          </View>
+          <TextInput value={lossForm.reason} onChangeText={(t) => setLossForm((f) => ({ ...f, reason: t }))} placeholder="Reason" style={inputStyle} />
+          <View style={{ backgroundColor: colors.error50, borderRadius: 8, padding: 13, flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 14, color: colors.error800 }}>Loss amount</Text>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.error900 }}>{F(Math.max(0, (parseInt(lossForm.remaining, 10) || 0) - (parseInt(lossForm.recovered, 10) || 0)))}</Text>
+          </View>
+          <TouchableOpacity onPress={saveLoss} style={{ alignItems: 'center', backgroundColor: colors.error800, borderRadius: 10, padding: 15 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Save loss</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
 
       <Toast message={toast} />
-    </div>
+    </View>
   );
 }
 
 function Centered({ children }) {
-  return <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(0,0,0,.5)' }}>{children}</div>;
+  return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>{children}</View>;
 }
 
 function DashTile({ label, value, sub, color }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 10, padding: 14, boxShadow: 'var(--shadow-sm)' }}>
-      <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: 500 }}>{label}</div>
-      <div style={{ fontSize: 21, fontWeight: 700, marginTop: 3, color: color || 'rgba(0,0,0,.87)' }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,.45)', marginTop: 2 }}>{sub}</div>
-    </div>
+    <View style={{ width: '47%', backgroundColor: '#fff', borderRadius: 10, padding: 14, ...cardShadowSm }}>
+      <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: '500' }}>{label}</Text>
+      <Text style={{ fontSize: 21, fontWeight: '700', marginTop: 3, color: color || 'rgba(0,0,0,.87)' }}>{value}</Text>
+      <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.45)', marginTop: 2 }}>{sub}</Text>
+    </View>
   );
 }
 
 function Tile({ label, value, color }) {
   return (
-    <div style={{ background: '#fafafa', padding: '10px 12px' }}>
-      <div style={{ fontSize: 11, color: 'rgba(0,0,0,.55)' }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2, color: color || 'inherit' }}>{value}</div>
-    </div>
+    <View style={{ flex: 1, backgroundColor: colors.neutral50, padding: 10 }}>
+      <Text style={{ fontSize: 11, color: 'rgba(0,0,0,.55)' }}>{label}</Text>
+      <Text style={{ fontSize: 15, fontWeight: '700', marginTop: 2, color: color || 'rgba(0,0,0,.87)' }}>{value}</Text>
+    </View>
   );
 }
 
 function Stat({ label, value, color }) {
   return (
-    <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: 500 }}>{label}</div>
-      <div style={{ fontSize: 19, fontWeight: 700, marginTop: 2, color: color || 'inherit' }}>{value}</div>
-    </div>
+    <View style={{ flex: 1 }}>
+      <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: '500' }}>{label}</Text>
+      <Text style={{ fontSize: 19, fontWeight: '700', marginTop: 2, color: color || 'rgba(0,0,0,.87)' }}>{value}</Text>
+    </View>
   );
 }
 
 function LedgerRow({ label, value, color }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
-      <div style={{ fontSize: 14, color: 'rgba(0,0,0,.7)' }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
-    </div>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
+      <Text style={{ fontSize: 14, color: 'rgba(0,0,0,.7)' }}>{label}</Text>
+      <Text style={{ fontSize: 16, fontWeight: '700', color }}>{value}</Text>
+    </View>
   );
 }
 
-function BackArrow({ onClick }) {
-  return <div onClick={onClick} style={{ fontSize: 22, color: 'rgba(0,0,0,.6)', cursor: 'pointer', lineHeight: 1, padding: '2px 6px 4px' }}>‹</div>;
-}
-
-function BottomSheet({ children, onClose }) {
+function BackArrow({ onPress }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 20 }}>
-      <div onClick={onClose} style={{ flex: 1 }} />
-      <div style={{ background: '#fff', borderRadius: '18px 18px 0 0', padding: '18px 18px 22px' }}>{children}</div>
-    </div>
+    <TouchableOpacity onPress={onPress} style={{ paddingVertical: 2, paddingHorizontal: 6 }}>
+      <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>‹</Text>
+    </TouchableOpacity>
   );
 }
 
-const inputStyle = { width: '100%', fontSize: 15, fontFamily: 'inherit', border: '1px solid #e0e0e0', borderRadius: 9999, padding: '12px 16px', outline: 'none', background: '#fff' };
+const inputStyle = { fontSize: 15, borderWidth: 1, borderColor: colors.neutral300, borderRadius: 9999, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#fff' };

@@ -1,15 +1,18 @@
+import { View, Text } from 'react-native';
+import { colors } from '../tokens';
+
 export default function Toast({ message }) {
   if (!message) return null;
   return (
-    <div
+    <View
       style={{
         position: 'absolute', left: 14, right: 14, bottom: 78,
-        background: 'var(--brand-navy)', color: '#fff', borderRadius: 10,
-        padding: '13px 16px', fontSize: 14, fontWeight: 500, zIndex: 30,
-        boxShadow: '0 10px 15px -3px rgba(0,0,0,.3)',
+        backgroundColor: colors.brandNavy, borderRadius: 10,
+        paddingVertical: 13, paddingHorizontal: 16, zIndex: 30,
+        elevation: 10,
       }}
     >
-      {message}
-    </div>
+      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '500' }}>{message}</Text>
+    </View>
   );
 }
