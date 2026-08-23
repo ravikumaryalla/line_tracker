@@ -1,0 +1,60 @@
+/* Design tokens ported from the Juricat design system used by the source mock. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --brand-navy: #002C61;
+  --brand-primary-600: #1e88e5;
+  --brand-primary-700: #1976d2;
+  --brand-primary-800: #1565c0;
+  --brand-primary-900: #0d47a1;
+  --brand-primary-50: #e3f2fd;
+
+  --success-500: #4caf50;
+  --success-600: #43a047;
+  --success-700: #388e3c;
+  --success-800: #2e7d32;
+  --success-900: #1b5e20;
+  --success-50: #e8f5e9;
+
+  --error-500: #f44336;
+  --error-600: #e53935;
+  --error-800: #c62828;
+  --error-900: #b71c1c;
+  --error-50: #ffebee;
+  --error-200: #ef9a9a;
+
+  --warning-300: #ffb74d;
+  --warning-200: #ffcc80;
+  --warning-600: #fb8c00;
+  --warning-900: #e65100;
+  --warning-50: #fff3e0;
+
+  --neutral-50: #fafafa;
+  --neutral-100: #f5f5f5;
+  --neutral-200: #eeeeee;
+  --neutral-300: #e0e0e0;
+
+  --fg1: rgba(0, 0, 0, 0.87);
+  --fg2: rgba(0, 0, 0, 0.6);
+  --fg3: rgba(0, 0, 0, 0.5);
+  --fg4: rgba(0, 0, 0, 0.38);
+
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(0, 44, 97, 0.1), 0 2px 4px -2px rgba(0, 44, 97, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 44, 97, 0.2), 0 4px 6px -4px rgba(0, 44, 97, 0.2);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-primary);
+  color: var(--fg1);
+  background: #f0eee9;
+}
+
+button, input {
+  font-family: inherit;
+}
