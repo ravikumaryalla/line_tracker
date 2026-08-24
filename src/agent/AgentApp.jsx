@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import Toast from '../components/Toast';
 import KeypadSheet from '../components/KeypadSheet';
+import BottomSheet from '../components/BottomSheet';
 
 const AGENT_ID = 1; // Mani Selvam — the signed-in field agent for this prototype.
 const TABS = [['Home', 'home'], ['Customers', 'customers'], ['Collections', 'collections'], ['History', 'history'], ['Expenses', 'expenses']];
@@ -28,16 +29,20 @@ export default function AgentApp({ onSwitchRole }) {
   const [expCat, setExpCat] = useState('Fuel');
   const [expAmt, setExpAmt] = useState('');
   const [expNote, setExpNote] = useState('');
-  const [give, setGive] = useState({ name: '', amt: '', weekly: '', weeks: '' });
+  const [give, setGive] = useState({ name: '', amt: '', weekly: '', weeks: '', phone: '', address: '', nominee: '', villageId: null });
+  const [villages, setVillages] = useState([]);
+  const [editFor, setEditFor] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', address: '', nominee: '', villageId: null });
   const [loading, setLoading] = useState(true);
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
 
   const loadCustomers = () => api.customers.list({ agentId: AGENT_ID }).then(setCustomers);
   const loadExpenses = () => api.expenses.list(AGENT_ID).then(setExpenses);
+  const loadVillages = () => api.villages.list().then((vs) => setVillages(vs.filter((v) => v.agentId === AGENT_ID)));
 
   useEffect(() => {
-    Promise.all([loadCustomers(), loadExpenses()]).finally(() => setLoading(false));
+    Promise.all([loadCustomers(), loadExpenses(), loadVillages()]).finally(() => setLoading(false));
   }, []);
 
   const go = (s) => { setScreen(s); setCollectFor(null); setAmt(''); };
@@ -106,12 +111,29 @@ export default function AgentApp({ onSwitchRole }) {
     const gWeekly = parseInt(give.weekly, 10) || 0;
     const gWeeks = parseInt(give.weeks, 10) || 0;
     if (!give.name || !gAmt || !gWeekly || !gWeeks) { flash('Fill name, amount, weekly and weeks'); return; }
-    await api.customers.create({ name: give.name, agentId: AGENT_ID, given: gAmt, weekly: gWeekly, weeks: gWeeks });
+    await api.customers.create({
+      name: give.name, agentId: AGENT_ID, given: gAmt, weekly: gWeekly, weeks: gWeeks,
+      phone: give.phone || undefined, address: give.address || undefined, nominee: give.nominee || undefined, villageId: give.villageId || undefined,
+    });
     await loadCustomers();
-    setGive({ name: '', amt: '', weekly: '', weeks: '' });
+    setGive({ name: '', amt: '', weekly: '', weeks: '', phone: '', address: '', nominee: '', villageId: null });
     setUnsynced((n) => n + 1);
     go('customers');
     flash(`Schedule created — ${gWeeks} weekly payments`);
+  };
+
+  const openEdit = (c) => {
+    setEditFor(c.id);
+    setEditForm({ name: c.name, phone: c.phone || '', address: c.address || '', nominee: c.nominee || '', villageId: c.villageId || null });
+  };
+  const closeEdit = () => setEditFor(null);
+
+  const saveEdit = async () => {
+    if (!editForm.name) { flash('Name is required'); return; }
+    await api.customers.update(editFor, editForm);
+    await loadCustomers();
+    closeEdit();
+    flash('Customer updated');
   };
 
   const selected = customers.find((c) => c.id === selectedId);
@@ -217,7 +239,7 @@ export default function AgentApp({ onSwitchRole }) {
         )}
 
         {screen === 'detail' && selected && (
-          <DetailScreen customer={selected} onBack={back} onCollect={() => openCollect(selected.id)} />
+          <DetailScreen customer={selected} onBack={back} onCollect={() => openCollect(selected.id)} onEdit={() => openEdit(selected)} />
         )}
 
         {screen === 'pending' && (
@@ -295,6 +317,26 @@ export default function AgentApp({ onSwitchRole }) {
               <Field label="Customer">
                 <TextInput value={give.name} onChangeText={(t) => setGive((g) => ({ ...g, name: t }))} placeholder="Name" style={inputStyle(8, 16)} />
               </Field>
+              <Field label="Phone (optional)">
+                <TextInput value={give.phone} onChangeText={(t) => setGive((g) => ({ ...g, phone: t }))} placeholder="98765 43210" keyboardType="phone-pad" style={inputStyle(8, 16)} />
+              </Field>
+              <Field label="Address (optional)">
+                <TextInput value={give.address} onChangeText={(t) => setGive((g) => ({ ...g, address: t }))} placeholder="Street, landmark" style={inputStyle(8, 16)} />
+              </Field>
+              <Field label="Nominee (optional)">
+                <TextInput value={give.nominee} onChangeText={(t) => setGive((g) => ({ ...g, nominee: t }))} placeholder="Nominee name" style={inputStyle(8, 16)} />
+              </Field>
+              {villages.length > 0 && (
+                <Field label="Village">
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {villages.map((v) => (
+                      <TouchableOpacity key={v.id} onPress={() => setGive((g) => ({ ...g, villageId: g.villageId === v.id ? null : v.id }))} style={{ borderRadius: 9999, paddingVertical: 9, paddingHorizontal: 15, borderWidth: 1, backgroundColor: give.villageId === v.id ? colors.brandNavy : '#fff', borderColor: give.villageId === v.id ? colors.brandNavy : colors.neutral300 }}>
+                        <Text style={{ fontSize: 13.5, fontWeight: '600', color: give.villageId === v.id ? '#fff' : 'rgba(0,0,0,.7)' }}>{v.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </Field>
+              )}
               <Field label="Amount given">
                 <TextInput value={give.amt} onChangeText={(t) => setGive((g) => ({ ...g, amt: t.replace(/[^0-9]/g, '') }))} placeholder="₹ 10,000" keyboardType="numeric" style={{ ...inputStyle(8, 22), fontWeight: '700', color: colors.brandNavy }} />
               </Field>
@@ -339,6 +381,28 @@ export default function AgentApp({ onSwitchRole }) {
           saving={saving}
         />
       )}
+
+      <BottomSheet visible={!!editFor} onClose={closeEdit}>
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700' }}>Edit customer</Text>
+          <TextInput value={editForm.name} onChangeText={(t) => setEditForm((f) => ({ ...f, name: t }))} placeholder="Name" style={inputStyle(8)} />
+          <TextInput value={editForm.phone} onChangeText={(t) => setEditForm((f) => ({ ...f, phone: t }))} placeholder="Phone" keyboardType="phone-pad" style={inputStyle(8)} />
+          <TextInput value={editForm.address} onChangeText={(t) => setEditForm((f) => ({ ...f, address: t }))} placeholder="Address" style={inputStyle(8)} />
+          <TextInput value={editForm.nominee} onChangeText={(t) => setEditForm((f) => ({ ...f, nominee: t }))} placeholder="Nominee" style={inputStyle(8)} />
+          {villages.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {villages.map((v) => (
+                <TouchableOpacity key={v.id} onPress={() => setEditForm((f) => ({ ...f, villageId: f.villageId === v.id ? null : v.id }))} style={{ borderRadius: 9999, paddingVertical: 9, paddingHorizontal: 15, borderWidth: 1, backgroundColor: editForm.villageId === v.id ? colors.brandNavy : '#fff', borderColor: editForm.villageId === v.id ? colors.brandNavy : colors.neutral300 }}>
+                  <Text style={{ fontSize: 13.5, fontWeight: '600', color: editForm.villageId === v.id ? '#fff' : 'rgba(0,0,0,.7)' }}>{v.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          <TouchableOpacity onPress={saveEdit} style={{ alignItems: 'center', backgroundColor: colors.brandNavy, borderRadius: 10, padding: 15 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Save changes</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
 
       <Toast message={toast} />
     </View>
@@ -427,12 +491,13 @@ function inputStyle(radius, fontSize = 15) {
   return { fontSize, borderWidth: 1, borderColor: colors.neutral300, borderRadius: radius, padding: 13, backgroundColor: '#fff' };
 }
 
-function DetailScreen({ customer: d, onBack, onCollect }) {
+function DetailScreen({ customer: d, onBack, onCollect, onEdit }) {
   return (
     <View style={{ padding: 16, gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <BackArrow onPress={onBack} />
-        <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.55)' }}>Customers</Text>
+        <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.55)', flex: 1 }}>Customers</Text>
+        <TouchableOpacity onPress={onEdit}><Text style={{ fontSize: 13.5, fontWeight: '600', color: colors.brandPrimary600 }}>Edit</Text></TouchableOpacity>
       </View>
       <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 18, ...cardShadowSm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -443,6 +508,7 @@ function DetailScreen({ customer: d, onBack, onCollect }) {
             <Text style={{ fontSize: 20, fontWeight: '700' }}>{d.name}</Text>
             <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 2 }}>{d.phone} · {d.village}</Text>
             <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>{d.address}</Text>
+            {d.nominee && <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>Nominee: {d.nominee}</Text>}
           </View>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden', marginTop: 16 }}>

@@ -24,6 +24,8 @@ export default function AdminApp({ onSwitchRole }) {
   const [assignFor, setAssignFor] = useState(null);
   const [lossOpen, setLossOpen] = useState(false);
   const [lossForm, setLossForm] = useState({ name: '', remaining: '', recovered: '', reason: '' });
+  const [editFor, setEditFor] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', address: '', nominee: '', villageId: null });
   const [range, setRange] = useState('This month');
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
@@ -76,6 +78,20 @@ export default function AdminApp({ onSwitchRole }) {
   };
 
   const filteredCustomers = customers.filter((c) => !search || (c.name + ' ' + (c.village || '')).toLowerCase().includes(search.toLowerCase()));
+
+  const openEdit = (c) => {
+    setEditFor(c.id);
+    setEditForm({ name: c.name, phone: c.phone || '', address: c.address || '', nominee: c.nominee || '', villageId: c.villageId || null });
+  };
+  const closeEdit = () => setEditFor(null);
+
+  const saveEdit = async () => {
+    if (!editForm.name) { flash('Name is required'); return; }
+    await api.customers.update(editFor, editForm);
+    await loadAll();
+    closeEdit();
+    flash('Customer updated');
+  };
 
   const expByCategory = useMemo(() => {
     const map = {};
@@ -231,7 +247,7 @@ export default function AdminApp({ onSwitchRole }) {
             <Text style={{ fontSize: 18, fontWeight: '600' }}>Customers</Text>
             <TextInput value={search} onChangeText={setSearch} placeholder="Search name, village or agent" style={inputStyle} />
             {filteredCustomers.map((c) => (
-              <View key={c.id} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, ...cardShadowSm }}>
+              <TouchableOpacity key={c.id} onPress={() => openEdit(c)} style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, ...cardShadowSm }}>
                 <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.neutral200, alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(0,0,0,.6)' }}>{initials(c.name)}</Text>
                 </View>
@@ -245,7 +261,7 @@ export default function AdminApp({ onSwitchRole }) {
                     {c.isDone ? 'Done' : c.missedWeeks.length ? `Missed ${c.missedWeeks.length}` : 'On time'}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -444,6 +460,26 @@ export default function AdminApp({ onSwitchRole }) {
           </View>
           <TouchableOpacity onPress={saveLoss} style={{ alignItems: 'center', backgroundColor: colors.error800, borderRadius: 10, padding: 15 }}>
             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Save loss</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={!!editFor} onClose={closeEdit}>
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700' }}>Edit customer</Text>
+          <TextInput value={editForm.name} onChangeText={(t) => setEditForm((f) => ({ ...f, name: t }))} placeholder="Name" style={inputStyle} />
+          <TextInput value={editForm.phone} onChangeText={(t) => setEditForm((f) => ({ ...f, phone: t }))} placeholder="Phone" keyboardType="phone-pad" style={inputStyle} />
+          <TextInput value={editForm.address} onChangeText={(t) => setEditForm((f) => ({ ...f, address: t }))} placeholder="Address" style={inputStyle} />
+          <TextInput value={editForm.nominee} onChangeText={(t) => setEditForm((f) => ({ ...f, nominee: t }))} placeholder="Nominee" style={inputStyle} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {villages.map((v) => (
+              <TouchableOpacity key={v.id} onPress={() => setEditForm((f) => ({ ...f, villageId: f.villageId === v.id ? null : v.id }))} style={{ borderRadius: 9999, paddingVertical: 9, paddingHorizontal: 15, borderWidth: 1, backgroundColor: editForm.villageId === v.id ? colors.brandNavy : '#fff', borderColor: editForm.villageId === v.id ? colors.brandNavy : colors.neutral300 }}>
+                <Text style={{ fontSize: 13.5, fontWeight: '600', color: editForm.villageId === v.id ? '#fff' : 'rgba(0,0,0,.7)' }}>{v.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity onPress={saveEdit} style={{ alignItems: 'center', backgroundColor: colors.brandNavy, borderRadius: 10, padding: 15 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Save changes</Text>
           </TouchableOpacity>
         </View>
       </BottomSheet>
