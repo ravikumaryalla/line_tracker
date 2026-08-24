@@ -14,7 +14,7 @@ const TABS = [['Home', 'home'], ['Customers', 'customers'], ['Collections', 'col
 const ACTIVE_TAB = { detail: 'customers', give: 'customers', pending: 'collections' };
 const EXPENSE_CATS = ['Travel', 'Fuel', 'Food', 'Other'];
 
-export default function AgentApp({ onSwitchRole }) {
+export default function AgentApp({ user, onLogout }) {
   const [screen, setScreen] = useState('home');
   const [customers, setCustomers] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -144,8 +144,8 @@ export default function AgentApp({ onSwitchRole }) {
   return (
     <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
       <Header
-        title="Mani Selvam"
-        subtitle="Kollur · Ammapet · Vadugapatti"
+        title={user?.name}
+        subtitle={villages.map((v) => v.name).join(' · ')}
         right={
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {unsynced > 0 && (
@@ -157,7 +157,7 @@ export default function AgentApp({ onSwitchRole }) {
                 <Text style={{ color: '#fff', fontSize: 11.5, fontWeight: '500' }}>{unsynced} to sync</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onSwitchRole}><Text style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>Switch</Text></TouchableOpacity>
+            <TouchableOpacity onPress={onLogout}><Text style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>Log out</Text></TouchableOpacity>
           </View>
         }
       />

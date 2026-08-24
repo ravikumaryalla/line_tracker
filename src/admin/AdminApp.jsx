@@ -12,7 +12,7 @@ const TABS = [['Dashboard', 'dashboard'], ['Villages', 'villages'], ['Agents', '
 const MORE_SCREENS = ['given', 'collections', 'expenses', 'losses', 'reports'];
 const TITLES = { dashboard: 'Dashboard', villages: 'Villages', agents: 'Agents', customers: 'Customers', more: 'More', given: 'Money given', collections: 'Collections', expenses: 'Expenses', losses: 'Losses', reports: 'Reports' };
 
-export default function AdminApp({ onSwitchRole }) {
+export default function AdminApp({ user, onLogout }) {
   const [screen, setScreen] = useState('dashboard');
   const [summary, setSummary] = useState(null);
   const [agents, setAgents] = useState([]);
@@ -120,7 +120,7 @@ export default function AdminApp({ onSwitchRole }) {
             <View style={{ backgroundColor: 'rgba(255,255,255,.12)', borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 11 }}>
               <Text style={{ color: '#fff', fontSize: 11.5, fontWeight: '600' }}>{agents.length} agents</Text>
             </View>
-            <TouchableOpacity onPress={onSwitchRole}><Text style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>Switch</Text></TouchableOpacity>
+            <TouchableOpacity onPress={onLogout}><Text style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>Log out</Text></TouchableOpacity>
           </View>
         }
       />

@@ -1,10 +1,20 @@
+import { getToken, clearSession, notifyUnauthorized } from './auth';
+
 const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 async function request(path, options) {
+  const token = await getToken();
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   });
+  if (res.status === 401) {
+    await clearSession();
+    notifyUnauthorized();
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed (${res.status})`);
@@ -13,6 +23,10 @@ async function request(path, options) {
 }
 
 export const api = {
+  auth: {
+    login: (phone, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) }),
+    me: () => request('/auth/me'),
+  },
   agents: {
     list: () => request('/agents'),
     get: (id) => request(`/agents/${id}`),
