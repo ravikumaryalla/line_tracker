@@ -27,14 +27,15 @@ export const api = {
     login: (phone, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) }),
     me: () => request('/auth/me'),
   },
-  agents: {
-    list: () => request('/agents'),
-    get: (id) => request(`/agents/${id}`),
-    toggle: (id, active) => request(`/agents/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+  users: {
+    list: () => request('/users'),
+    create: (data) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
+    setPassword: (id, password) => request(`/users/${id}/password`, { method: 'PATCH', body: JSON.stringify({ password }) }),
+    remove: (id) => request(`/users/${id}`, { method: 'DELETE' }),
   },
   villages: {
     list: () => request('/villages'),
-    assign: (id, agentId) => request(`/villages/${id}/assign`, { method: 'PATCH', body: JSON.stringify({ agentId }) }),
+    create: (data) => request('/villages', { method: 'POST', body: JSON.stringify(data) }),
   },
   customers: {
     list: (params = {}) => {
@@ -44,12 +45,13 @@ export const api = {
     },
     get: (id) => request(`/customers/${id}`),
     payments: (id) => request(`/customers/${id}/payments`),
+    photo: (id) => request(`/customers/${id}/photo`),
     create: (data) => request('/customers', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, data) => request(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     collect: (id, amount, note) => request(`/customers/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount, note }) }),
   },
   expenses: {
-    list: (agentId) => request(`/expenses${agentId ? `?agentId=${agentId}` : ''}`),
+    list: () => request('/expenses'),
     create: (data) => request('/expenses', { method: 'POST', body: JSON.stringify(data) }),
   },
   losses: {

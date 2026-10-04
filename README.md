@@ -1,8 +1,8 @@
 # Lending Collection App — Mobile (React Native / Expo)
 
-React Native (Expo) app implementing the Agent field-collection app (progress-card home with a keypad
-bottom-sheet for collecting payments) and the Admin app (cards-and-charts dashboard), talking to the
-Express/PostgreSQL backend in the sibling `line_tracker_backend` repo.
+React Native (Expo) admin app for running a weekly-repayment lending book: one admin login adds customers,
+records collections (keypad bottom-sheet), expenses and losses, and sees a cards-and-charts dashboard. It talks
+to the Express/PostgreSQL backend in the sibling `line_tracker_backend` repo.
 
 ## Run
 
@@ -24,9 +24,9 @@ or `a` / `i` for an Android/iOS simulator if you have one set up.
 
 ## Structure
 
-- `src/App.jsx` — role picker (Agent app / Admin app), app root.
-- `src/agent/AgentApp.jsx` — Home, Customers, Customer detail, Pending & missed, History, Expenses, Give money.
-- `src/admin/AdminApp.jsx` — Dashboard, Villages (+ assign agent), Agents, Customers, More → Given/Collections/Expenses/Losses/Reports.
-- `src/components/` — shared UI: `Header`, `BottomNav`, `Toast`, `KeypadSheet` (payment collection sheet), `BottomSheet` (generic modal sheet).
+- `src/App.jsx` — app root: login, then the admin app.
+- `src/admin/AdminApp.jsx` — Dashboard, Collect (due today + Pending & missed), Customers (add / detail / edit), Villages, More → Money given / Collections / Expenses / Losses / Reports / Admin accounts.
+- `src/components/` — shared UI: `Header`, `BottomNav`, `Toast`, `KeypadSheet` (payment collection sheet), `BottomSheet` (generic modal sheet), `SearchSelect` (searchable dropdown), `PhotoPicker` (customer photo).
+- `src/validate.js` — form validation for customers.
 - `src/api.js` — fetch client for the backend REST API.
 - `src/tokens.js` — design tokens (colors, card shadows) ported from the source Juricat design system.

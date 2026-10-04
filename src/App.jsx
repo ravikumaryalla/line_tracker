@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import AgentApp from './agent/AgentApp';
 import AdminApp from './admin/AdminApp';
 import Login from './Login';
 import { colors } from './tokens';
@@ -13,7 +12,14 @@ export default function App() {
 
   useEffect(() => {
     setUnauthorizedHandler(() => setUser(null));
-    getStoredUser().then(setUser).finally(() => setLoading(false));
+    // A session saved by the old agent app can't be used any more; send that user back to sign in.
+    getStoredUser()
+      .then(async (u) => {
+        if (u && u.role !== 'admin') { await clearSession(); return null; }
+        return u;
+      })
+      .then(setUser)
+      .finally(() => setLoading(false));
   }, []);
 
   const onLoggedIn = async (token, loggedInUser) => {
@@ -36,10 +42,8 @@ export default function App() {
           </View>
         ) : !user ? (
           <Login onLoggedIn={onLoggedIn} />
-        ) : user.role === 'admin' ? (
-          <AdminApp user={user} onLogout={onLogout} />
         ) : (
-          <AgentApp user={user} onLogout={onLogout} />
+          <AdminApp user={user} onLogout={onLogout} />
         )}
       </SafeAreaView>
     </SafeAreaProvider>
