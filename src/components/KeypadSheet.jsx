@@ -29,7 +29,7 @@ export default function KeypadSheet({ visible, name, sub, weekly, due = weekly, 
           {amount ? F(value) : '₹0'}
         </Text>
         <Text style={{ fontSize: 12.5, color: value > remaining ? colors.error800 : 'rgba(0,0,0,.55)', marginTop: 2 }}>
-          {value > remaining ? `More than the balance of ${F(remaining)}` : extra > 0 ? `${F(extra)} extra goes to the next weeks` : `Balance ${F(remaining)}`}
+          {value > remaining ? `More than the balance of ${F(remaining)}` : extra > 0 ? `${F(extra)} more than this week's due` : `Balance ${F(remaining)}`}
         </Text>
       </View>
 

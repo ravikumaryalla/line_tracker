@@ -125,9 +125,7 @@ export default function AdminApp({ user, onLogout }) {
       await loadAll();
       if (screen === 'detail' && selectedId === collectTarget.id) await loadDetail(selectedId);
       closeCollect();
-      const weeksCovered = updated.weeksPaid - collectTarget.weeksPaid;
-      const covered = weeksCovered > 1 ? ` · covers ${weeksCovered} weeks` : '';
-      flash(`${F(amount)} from ${collectTarget.name.split(' ')[0]} saved${covered}`);
+      flash(`${F(amount)} from ${collectTarget.name.split(' ')[0]} saved${updated.isDone ? ' · loan closed' : ''}`);
     } catch (e) {
       flash(e.message);
     } finally {
@@ -949,7 +947,7 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit }) {
           <DetailTile label="Paid so far" value={F(d.paid)} color={colors.success800} />
           <DetailTile label="Still to pay" value={F(d.remaining)} color={colors.warning900} />
         </View>
-        <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 14 }}>{d.weeksPaid} of {d.totalWeeks} weeks paid</Text>
+        <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 14 }}>{d.weeksPaid} of {d.totalWeeks} weeks paid{d.isDone && d.weeksPaid < d.totalWeeks ? ' · finished early' : ''}</Text>
         {!d.isDone && (
           <TouchableOpacity onPress={onCollect} style={{ marginTop: 16, alignItems: 'center', backgroundColor: colors.brandPrimary600, borderRadius: 10, padding: 15, ...cardShadowLg }}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Collect {F(d.weekly)}</Text>
@@ -965,7 +963,15 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit }) {
           return (
             <View key={w.week} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
               <View style={{ width: 9, height: 9, borderRadius: 9999, backgroundColor: dot }} />
-              <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>Week {w.week}</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 14.5, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>Week {w.week}</Text>
+                {(w.payments || []).length === 1 && (
+                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>Paid {w.payments[0].date}</Text>
+                )}
+                {(w.payments || []).length > 1 && w.payments.map((p, i) => (
+                  <Text key={i} style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>{p.date} · {F(p.amount)}</Text>
+                ))}
+              </View>
               <Text style={{ fontSize: 14.5, fontWeight: '700', color: 'rgba(0,0,0,.87)' }}>{F(w.amount)}</Text>
               <StatusBadge status={label} />
             </View>
