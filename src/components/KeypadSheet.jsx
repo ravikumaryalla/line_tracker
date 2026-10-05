@@ -5,8 +5,11 @@ import { F } from '../format';
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫'];
 
-export default function KeypadSheet({ visible, name, sub, weekly, amount, onKey, onSave, onClose, saving }) {
-  const chips = [weekly, Math.round(weekly / 2), weekly * 2];
+export default function KeypadSheet({ visible, name, sub, weekly, due = weekly, remaining, amount, onKey, onSave, onClose, saving }) {
+  const value = parseInt(amount, 10) || 0;
+  const chips = [weekly, Math.round(weekly / 2), weekly * 2].filter((c) => c <= remaining);
+  if (remaining > 0 && remaining < weekly * 2 && !chips.includes(remaining)) chips.push(remaining);
+  const extra = Math.min(value, remaining) - due;
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -23,7 +26,10 @@ export default function KeypadSheet({ visible, name, sub, weekly, amount, onKey,
       <View style={{ backgroundColor: colors.neutral100, borderRadius: 12, padding: 16, marginTop: 14, alignItems: 'center' }}>
         <Text style={{ fontSize: 11.5, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(0,0,0,.5)' }}>Amount received</Text>
         <Text style={{ fontSize: 42, fontWeight: '700', color: colors.brandNavy, marginTop: 4 }}>
-          {amount ? F(parseInt(amount, 10) || 0) : '₹0'}
+          {amount ? F(value) : '₹0'}
+        </Text>
+        <Text style={{ fontSize: 12.5, color: value > remaining ? colors.error800 : 'rgba(0,0,0,.55)', marginTop: 2 }}>
+          {value > remaining ? `More than the balance of ${F(remaining)}` : extra > 0 ? `${F(extra)} extra goes to the next weeks` : `Balance ${F(remaining)}`}
         </Text>
       </View>
 

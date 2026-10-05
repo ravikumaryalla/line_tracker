@@ -18,10 +18,10 @@ const EMPTY_ADMIN = { name: '', phone: '', password: '' };
 const EXPENSE_CATS = ['Travel', 'Fuel', 'Food', 'Other'];
 const MORE_SCREENS = ['given', 'collections', 'expenses', 'losses', 'reports', 'users'];
 // Screens that live under a tab without being one; maps them to the tab to highlight.
-const PARENT_TAB = { pending: 'collect', detail: 'customers', addCustomer: 'customers' };
+const PARENT_TAB = { pending: 'collect', detail: 'customers', addCustomer: 'customers', village: 'villages' };
 const TITLES = {
   dashboard: 'Dashboard', collect: 'Collect', pending: 'Pending & missed', customers: 'Customers', detail: 'Customer', addCustomer: 'Add customer',
-  villages: 'Villages', more: 'More', given: 'Money given', collections: 'Collections', expenses: 'Expenses', losses: 'Losses', reports: 'Reports', users: 'Admin accounts',
+  villages: 'Villages', village: 'Village', more: 'More', given: 'Money given', collections: 'Collections', expenses: 'Expenses', losses: 'Losses', reports: 'Reports', users: 'Admin accounts',
 };
 
 export default function AdminApp({ user, onLogout }) {
@@ -42,6 +42,7 @@ export default function AdminApp({ user, onLogout }) {
   const [saving, setSaving] = useState(false);
   const [villageOpen, setVillageOpen] = useState(false);
   const [villageName, setVillageName] = useState('');
+  const [villageId, setVillageId] = useState(null);
   const [lossOpen, setLossOpen] = useState(false);
   const [lossForm, setLossForm] = useState({ name: '', remaining: '', recovered: '', reason: '' });
   const [expenseFormOpen, setExpenseFormOpen] = useState(false);
@@ -117,13 +118,16 @@ export default function AdminApp({ user, onLogout }) {
   const saveCollect = async () => {
     const amount = parseInt(String(amt).replace(/[^0-9]/g, ''), 10);
     if (!collectTarget || !amount) { flash('Enter the amount received'); return; }
+    if (amount > collectTarget.remaining) { flash(`Amount is more than the balance (${F(collectTarget.remaining)})`); return; }
     setSaving(true);
     try {
-      await api.customers.collect(collectTarget.id, amount);
+      const updated = await api.customers.collect(collectTarget.id, amount);
       await loadAll();
       if (screen === 'detail' && selectedId === collectTarget.id) await loadDetail(selectedId);
       closeCollect();
-      flash(`${F(amount)} from ${collectTarget.name.split(' ')[0]} saved`);
+      const weeksCovered = updated.weeksPaid - collectTarget.weeksPaid;
+      const covered = weeksCovered > 1 ? ` · covers ${weeksCovered} weeks` : '';
+      flash(`${F(amount)} from ${collectTarget.name.split(' ')[0]} saved${covered}`);
     } catch (e) {
       flash(e.message);
     } finally {
@@ -190,6 +194,13 @@ export default function AdminApp({ user, onLogout }) {
       return created.id;
     } catch (e) { flash(e.message); return null; }
   };
+
+  const openVillage = (id) => { setVillageId(id); go('village'); };
+  const selectedVillage = villages.find((v) => v.id === villageId);
+  // Active customers first, finished loans at the bottom.
+  const villageCustomers = customers.filter((c) => c.villageId === villageId).sort((a, b) => a.isDone - b.isDone);
+  const villageExpected = villageCustomers.filter((c) => !c.isDone).reduce((s, c) => s + c.weekly, 0);
+  const villageCollectedToday = villageCustomers.reduce((s, c) => s + c.paidToday, 0);
 
   const saveVillage = async () => {
     if (await createVillage(villageName)) {
@@ -506,16 +517,47 @@ export default function AdminApp({ user, onLogout }) {
               </TouchableOpacity>
             </View>
             {villages.map((v) => (
-              <View key={v.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
-                <Text style={{ fontSize: 17, fontWeight: '700' }}>{v.name}</Text>
+              <TouchableOpacity key={v.id} onPress={() => openVillage(v.id)} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', flex: 1 }}>{v.name}</Text>
+                  <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.35)' }}>›</Text>
+                </View>
                 <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.customerCount} customers</Text>
                 <View style={{ flexDirection: 'row', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
                   <Tile label="Given" value={F(v.given)} />
                   <Tile label="Collected" value={F(v.collected)} color={colors.success800} />
                   <Tile label="Pending" value={F(v.pending)} color={colors.warning900} />
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
+          </View>
+        )}
+
+        {screen === 'village' && selectedVillage && (
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('villages')} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '600' }}>{selectedVillage.name}</Text>
+                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)' }}>{villageCustomers.length} customer{villageCustomers.length === 1 ? '' : 's'}</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden', ...cardShadowSm }}>
+              <Tile label="Given" value={F(selectedVillage.given)} />
+              <Tile label="Collected" value={F(selectedVillage.collected)} color={colors.success800} />
+              <Tile label="Pending" value={F(selectedVillage.pending)} color={colors.warning900} />
+            </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'baseline', ...cardShadowSm }}>
+              <Text style={{ fontSize: 13.5, fontWeight: '600', color: 'rgba(0,0,0,.7)', flex: 1 }}>Collected today</Text>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: colors.success800 }}>{F(villageCollectedToday)}</Text>
+              <Text style={{ fontSize: 13.5, fontWeight: '500', color: 'rgba(0,0,0,.45)' }}> / {F(villageExpected)}</Text>
+            </View>
+            <View style={{ gap: 10 }}>
+              {villageCustomers.map((c, i) => (
+                <CustomerRow key={c.id} c={c} i={i} onOpen={() => openDetail(c.id)} onCollect={() => openCollect(c.id)} />
+              ))}
+              {!villageCustomers.length && <Text style={{ fontSize: 13.5, color: 'rgba(0,0,0,.5)', textAlign: 'center', paddingVertical: 20 }}>No customers in this village yet</Text>}
+            </View>
           </View>
         )}
 
@@ -746,6 +788,8 @@ export default function AdminApp({ user, onLogout }) {
           name={collectTarget.name}
           sub={`Week ${collectTarget.currentWeek} · due ${F(collectTarget.weekly)}`}
           weekly={collectTarget.weekly}
+          due={collectTarget.weekly - ((collectTarget.partialWeeks || {})[collectTarget.currentWeek] || 0)}
+          remaining={collectTarget.remaining}
           amount={amt}
           onKey={onKeypad}
           onSave={saveCollect}
@@ -940,7 +984,11 @@ function CustomerRow({ c, i, onOpen, onCollect }) {
         <Text style={{ fontSize: 15.5, fontWeight: '600', color: 'rgba(0,0,0,.87)' }}>{c.name}</Text>
         <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{[`Week ${c.currentWeek} of ${c.totalWeeks}`, c.village].filter(Boolean).join(' · ')}</Text>
       </TouchableOpacity>
-      {c.isPaidToday ? (
+      {c.isDone && !c.isPaidToday ? (
+        <View style={{ backgroundColor: colors.success50, borderRadius: 9999, paddingVertical: 4, paddingHorizontal: 10 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: colors.success800 }}>Done</Text>
+        </View>
+      ) : c.isPaidToday ? (
         <View style={{ alignItems: 'flex-end', gap: 3 }}>
           <Text style={{ fontSize: 16, fontWeight: '700', color: colors.success800 }}>{F(c.paidToday)}</Text>
           <View style={{ backgroundColor: colors.success50, borderRadius: 9999, paddingVertical: 2, paddingHorizontal: 8 }}>
