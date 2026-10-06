@@ -14,6 +14,10 @@ import SearchSelect from '../components/SearchSelect';
 
 const TABS = [['Dashboard', 'dashboard', 'grid'], ['Collect', 'collect', 'cash'], ['Customers', 'customers', 'people'], ['Villages', 'villages', 'location'], ['More', 'more', 'ellipsis-horizontal-circle']];
 const EMPTY_CUSTOMER = { name: '', phone: '', nominee: '', photo: null, villageId: null, amt: '', weeks: '', total: '' };
+// Extra payments shorten a loan from the end: dueNow is what the current week still needs and
+// scheduleWeeks how many weeks the loan really runs. Fallbacks cover a backend without these fields.
+const dueOf = (c) => c.dueNow ?? c.weekly;
+const weeksOf = (c) => c.scheduleWeeks || c.totalWeeks;
 const EMPTY_ADMIN = { name: '', phone: '', password: '' };
 const EXPENSE_CATS = ['Travel', 'Fuel', 'Food', 'Other'];
 const MORE_SCREENS = ['given', 'collections', 'expenses', 'losses', 'reports', 'users'];
@@ -101,7 +105,7 @@ export default function AdminApp({ user, onLogout }) {
 
   // ---- Collections ----
   const dueList = useMemo(() => customers.filter((c) => !c.isDone), [customers]);
-  const expected = dueList.reduce((s, c) => s + c.weekly, 0);
+  const expected = dueList.reduce((s, c) => s + dueOf(c), 0);
   const collectedToday = customers.reduce((s, c) => s + c.paidToday, 0);
   const pct = expected ? Math.min(100, Math.round((collectedToday / expected) * 100)) : 0;
   const leftCount = dueList.filter((c) => !c.isPaidToday).length;
@@ -117,7 +121,7 @@ export default function AdminApp({ user, onLogout }) {
       pendingRows.push({ id: c.id, name: c.name, sub: `Week ${w} · paid ${F(c.partialWeeks[w])} of ${F(c.weekly)}`, amount: c.weekly - c.partialWeeks[w], status: 'Part paid' })
     );
     if (!c.isDone && !c.isPaidToday) {
-      pendingRows.push({ id: c.id, name: c.name, sub: `Week ${c.currentWeek} · due today`, amount: c.weekly, status: 'Pending' });
+      pendingRows.push({ id: c.id, name: c.name, sub: `Week ${c.currentWeek} · due today`, amount: dueOf(c), status: 'Pending' });
     }
   });
 
@@ -233,7 +237,7 @@ export default function AdminApp({ user, onLogout }) {
   const selectedVillage = villages.find((v) => v.id === villageId);
   // Only running loans; customers whose loan is cleared are reached from the Customers tab.
   const villageCustomers = customers.filter((c) => c.villageId === villageId && !c.isDone);
-  const villageExpected = villageCustomers.reduce((s, c) => s + c.weekly, 0);
+  const villageExpected = villageCustomers.reduce((s, c) => s + dueOf(c), 0);
   const villageCollectedToday = villageCustomers.reduce((s, c) => s + c.paidToday, 0);
 
   const saveVillage = async () => {
@@ -831,9 +835,9 @@ export default function AdminApp({ user, onLogout }) {
         <KeypadSheet
           visible={!!collectFor}
           name={collectTarget.name}
-          sub={`Week ${collectTarget.currentWeek} · due ${F(collectTarget.weekly)}`}
+          sub={`Week ${collectTarget.currentWeek} of ${weeksOf(collectTarget)} · due ${F(dueOf(collectTarget))}`}
           weekly={collectTarget.weekly}
-          due={collectTarget.weekly - ((collectTarget.partialWeeks || {})[collectTarget.currentWeek] || 0)}
+          due={dueOf(collectTarget)}
           remaining={collectTarget.remaining}
           amount={amt}
           onKey={onKeypad}
@@ -1011,7 +1015,7 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit, onNewLoan, onOpe
             Loan cleared · paid in {closedIn} week{closedIn === 1 ? '' : 's'}{closedIn < d.totalWeeks ? ` of ${d.totalWeeks}` : ''}
           </Text>
         ) : (
-          <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 14 }}>{d.weeksPaid} of {d.totalWeeks} weeks paid</Text>
+          <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 14 }}>{d.weeksPaid} of {weeksOf(d)} weeks paid{weeksOf(d) < d.totalWeeks ? ` · ${d.totalWeeks - weeksOf(d)} week${d.totalWeeks - weeksOf(d) === 1 ? '' : 's'} saved` : ''}</Text>
         )}
         {d.isDone ? (
           <TouchableOpacity onPress={onNewLoan} style={{ marginTop: 16, alignItems: 'center', backgroundColor: colors.brandNavy, borderRadius: 10, padding: 15, ...cardShadowLg }}>
@@ -1019,7 +1023,7 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit, onNewLoan, onOpe
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={onCollect} style={{ marginTop: 16, alignItems: 'center', backgroundColor: colors.brandPrimary600, borderRadius: 10, padding: 15, ...cardShadowLg }}>
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Collect {F(d.weekly)}</Text>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Collect {F(dueOf(d))}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1081,7 +1085,7 @@ function CustomerRow({ c, i, onOpen, onCollect }) {
       <TouchableOpacity onPress={onOpen}><Avatar name={c.name} i={i} /></TouchableOpacity>
       <TouchableOpacity onPress={onOpen} style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ fontSize: 15.5, fontWeight: '600', color: 'rgba(0,0,0,.87)' }}>{c.name}</Text>
-        <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{[c.isDone ? 'Loan cleared' : `Week ${c.currentWeek} of ${c.totalWeeks}`, c.village].filter(Boolean).join(' · ')}</Text>
+        <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{[c.isDone ? 'Loan cleared' : `Week ${c.currentWeek} of ${weeksOf(c)}`, c.village].filter(Boolean).join(' · ')}</Text>
       </TouchableOpacity>
       {c.isDone && !c.isPaidToday ? (
         <View style={{ backgroundColor: colors.success50, borderRadius: 9999, paddingVertical: 4, paddingHorizontal: 10 }}>
@@ -1096,7 +1100,7 @@ function CustomerRow({ c, i, onOpen, onCollect }) {
         </View>
       ) : (
         <TouchableOpacity onPress={onCollect} style={{ backgroundColor: colors.brandPrimary600, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 14, ...cardShadowMd }}>
-          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Collect {F(c.weekly)}</Text>
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Collect {F(dueOf(c))}</Text>
         </TouchableOpacity>
       )}
     </View>
