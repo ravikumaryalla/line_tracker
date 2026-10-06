@@ -25,7 +25,7 @@ or `a` / `i` for an Android/iOS simulator if you have one set up.
 ## Structure
 
 - `src/App.jsx` — app root: login, then the admin app.
-- `src/admin/AdminApp.jsx` — Dashboard, Collect (due today + Pending & missed), Customers (add / detail / edit / give a new loan once the current one is cleared), Villages, More → Money given / Collections / Expenses / Losses / Reports / Admin accounts.
+- `src/admin/AdminApp.jsx` — Dashboard, Collect (due today + Pending & missed), Customers (add / detail / edit / give a new loan once the current one is cleared / past loans with their own payment history), Villages (running loans only), More → Money given / Collections / Expenses / Losses / Reports / Admin accounts.
 - `src/components/` — shared UI: `Header`, `BottomNav`, `Toast`, `KeypadSheet` (payment collection sheet), `BottomSheet` (generic modal sheet), `SearchSelect` (searchable dropdown), `PhotoPicker` (customer photo).
 - `src/validate.js` — form validation for customers.
 - `src/api.js` — fetch client for the backend REST API.

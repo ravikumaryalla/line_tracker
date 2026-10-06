@@ -18,9 +18,9 @@ const EMPTY_ADMIN = { name: '', phone: '', password: '' };
 const EXPENSE_CATS = ['Travel', 'Fuel', 'Food', 'Other'];
 const MORE_SCREENS = ['given', 'collections', 'expenses', 'losses', 'reports', 'users'];
 // Screens that live under a tab without being one; maps them to the tab to highlight.
-const PARENT_TAB = { pending: 'collect', detail: 'customers', addCustomer: 'customers', village: 'villages' };
+const PARENT_TAB = { pending: 'collect', detail: 'customers', loan: 'customers', addCustomer: 'customers', village: 'villages' };
 const TITLES = {
-  dashboard: 'Dashboard', collect: 'Collect', pending: 'Pending & missed', customers: 'Customers', detail: 'Customer', addCustomer: 'Add customer',
+  dashboard: 'Dashboard', collect: 'Collect', pending: 'Pending & missed', customers: 'Customers', detail: 'Customer', loan: 'Past loan', addCustomer: 'Add customer',
   villages: 'Villages', village: 'Village', more: 'More', given: 'Money given', collections: 'Collections', expenses: 'Expenses', losses: 'Losses', reports: 'Reports', users: 'Admin accounts',
 };
 
@@ -37,6 +37,7 @@ export default function AdminApp({ user, onLogout }) {
   const [collectSearch, setCollectSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [pastLoan, setPastLoan] = useState(null);
   const [collectFor, setCollectFor] = useState(null);
   const [amt, setAmt] = useState('');
   const [saving, setSaving] = useState(false);
@@ -89,6 +90,13 @@ export default function AdminApp({ user, onLogout }) {
     setDetail(customers.find((c) => c.id === id) || null);
     loadDetail(id);
     go('detail');
+  };
+
+  // Earlier, cleared loan of the customer on the detail screen, with its own payment history.
+  const openPastLoan = (loanNo) => {
+    setPastLoan((detail.pastLoans || []).find((l) => l.loanNo === loanNo) || null);
+    api.customers.pastLoan(selectedId, loanNo).then(setPastLoan).catch((e) => flash(e.message));
+    go('loan');
   };
 
   // ---- Collections ----
@@ -223,9 +231,9 @@ export default function AdminApp({ user, onLogout }) {
 
   const openVillage = (id) => { setVillageId(id); go('village'); };
   const selectedVillage = villages.find((v) => v.id === villageId);
-  // Active customers first, finished loans at the bottom.
-  const villageCustomers = customers.filter((c) => c.villageId === villageId).sort((a, b) => a.isDone - b.isDone);
-  const villageExpected = villageCustomers.filter((c) => !c.isDone).reduce((s, c) => s + c.weekly, 0);
+  // Only running loans; customers whose loan is cleared are reached from the Customers tab.
+  const villageCustomers = customers.filter((c) => c.villageId === villageId && !c.isDone);
+  const villageExpected = villageCustomers.reduce((s, c) => s + c.weekly, 0);
   const villageCollectedToday = villageCustomers.reduce((s, c) => s + c.paidToday, 0);
 
   const saveVillage = async () => {
@@ -478,7 +486,33 @@ export default function AdminApp({ user, onLogout }) {
         )}
 
         {screen === 'detail' && detail && (
-          <DetailScreen customer={detail} onBack={() => go(prevScreen)} onCollect={() => openCollect(detail.id)} onEdit={() => openEdit(detail)} onNewLoan={() => openNewLoan(detail)} />
+          <DetailScreen customer={detail} onBack={() => go(prevScreen)} onCollect={() => openCollect(detail.id)} onEdit={() => openEdit(detail)} onNewLoan={() => openNewLoan(detail)} onOpenPastLoan={openPastLoan} />
+        )}
+
+        {screen === 'loan' && pastLoan && (
+          <View style={{ padding: 16, gap: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <BackArrow onPress={() => go('detail')} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '600' }}>Loan {pastLoan.loanNo}</Text>
+                {!!detail && <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)' }}>{detail.name}</Text>}
+              </View>
+            </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 18, ...cardShadowSm }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden' }}>
+                <DetailTile label="Amount given" value={F(pastLoan.given)} />
+                <DetailTile label="Weekly" value={F(pastLoan.weekly)} />
+                <DetailTile label="Paid" value={F(pastLoan.paid)} color={colors.success800} />
+                <DetailTile label="Weeks" value={String(pastLoan.totalWeeks)} />
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.success800, marginTop: 14 }}>
+                {pastLoan.startedAt} – {pastLoan.closedAt}
+                {pastLoan.timeline ? ` · paid in ${pastLoan.timeline.length} week${pastLoan.timeline.length === 1 ? '' : 's'}` : ''}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '600' }}>Payment history</Text>
+            <PaymentHistory timeline={pastLoan.timeline} />
+          </View>
         )}
 
         {screen === 'addCustomer' && (
@@ -533,7 +567,7 @@ export default function AdminApp({ user, onLogout }) {
                   <Text style={{ fontSize: 17, fontWeight: '700', flex: 1 }}>{v.name}</Text>
                   <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.35)' }}>›</Text>
                 </View>
-                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.customerCount} customers</Text>
+                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.activeCount} active customer{v.activeCount === 1 ? '' : 's'}</Text>
                 <View style={{ flexDirection: 'row', gap: 1, backgroundColor: colors.neutral200, borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
                   <Tile label="Given" value={F(v.given)} />
                   <Tile label="Collected" value={F(v.collected)} color={colors.success800} />
@@ -567,7 +601,7 @@ export default function AdminApp({ user, onLogout }) {
               {villageCustomers.map((c, i) => (
                 <CustomerRow key={c.id} c={c} i={i} onOpen={() => openDetail(c.id)} onCollect={() => openCollect(c.id)} />
               ))}
-              {!villageCustomers.length && <Text style={{ fontSize: 13.5, color: 'rgba(0,0,0,.5)', textAlign: 'center', paddingVertical: 20 }}>No customers in this village yet</Text>}
+              {!villageCustomers.length && <Text style={{ fontSize: 13.5, color: 'rgba(0,0,0,.5)', textAlign: 'center', paddingVertical: 20 }}>No running loans in this village</Text>}
             </View>
           </View>
         )}
@@ -633,7 +667,7 @@ export default function AdminApp({ user, onLogout }) {
                   <Text style={{ fontSize: 15, fontWeight: '600' }}>{v.name}</Text>
                   <Text style={{ fontSize: 16, fontWeight: '700', color: colors.brandNavy }}>{F(v.collected)}</Text>
                 </View>
-                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.customerCount} customers · {F(v.pending)} pending</Text>
+                <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>{v.activeCount} active · {F(v.pending)} pending</Text>
                 <View style={{ height: 8, borderRadius: 9999, backgroundColor: colors.neutral200, marginTop: 10, overflow: 'hidden' }}>
                   <View style={{ height: '100%', borderRadius: 9999, backgroundColor: colors.success600, width: `${Math.round((v.collected / Math.max(1, v.collected + v.pending)) * 100)}%` }} />
                 </View>
@@ -947,7 +981,7 @@ export default function AdminApp({ user, onLogout }) {
   );
 }
 
-function DetailScreen({ customer: d, onBack, onCollect, onEdit, onNewLoan }) {
+function DetailScreen({ customer: d, onBack, onCollect, onEdit, onNewLoan, onOpenPastLoan }) {
   const closedIn = d.lastPaidWeek || d.weeksPaid;
   return (
     <View style={{ padding: 16, gap: 14 }}>
@@ -990,46 +1024,53 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit, onNewLoan }) {
         )}
       </View>
       <Text style={{ fontSize: 15, fontWeight: '600' }}>{d.loanNo > 1 ? `Loan ${d.loanNo} · payment history` : 'Payment history'}</Text>
-      <View style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, ...cardShadowSm }}>
-        {!d.timeline && <ActivityIndicator color={colors.brandNavy} style={{ paddingVertical: 16 }} />}
-        {(d.timeline || []).map((w) => {
-          const map = { paid: [colors.success600, 'Paid'], missed: [colors.error600, 'Missed'], partial: [colors.brandPrimary600, 'Part paid'], pending: [colors.warning600, 'Pending'], upcoming: [colors.neutral300, 'Upcoming'] };
-          const [dot, label] = map[w.status];
-          return (
-            <View key={w.week} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
-              <View style={{ width: 9, height: 9, borderRadius: 9999, backgroundColor: dot }} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 14.5, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>Week {w.week}</Text>
-                {(w.payments || []).length === 1 && (
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>Paid {w.payments[0].date}</Text>
-                )}
-                {(w.payments || []).length > 1 && w.payments.map((p, i) => (
-                  <Text key={i} style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>{p.date} · {F(p.amount)}</Text>
-                ))}
-              </View>
-              <Text style={{ fontSize: 14.5, fontWeight: '700', color: 'rgba(0,0,0,.87)' }}>{F(w.amount)}</Text>
-              <StatusBadge status={label} />
-            </View>
-          );
-        })}
-      </View>
+      <PaymentHistory timeline={d.timeline} />
       {!!d.pastLoans?.length && (
         <>
           <Text style={{ fontSize: 15, fontWeight: '600' }}>Past loans</Text>
           <View style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, ...cardShadowSm }}>
             {d.pastLoans.map((l) => (
-              <View key={l.loanNo} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
+              <TouchableOpacity key={l.loanNo} onPress={() => onOpenPastLoan(l.loanNo)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 14.5, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>Loan {l.loanNo} · given {F(l.given)}</Text>
                   <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>{l.startedAt} – {l.closedAt} · {F(l.weekly)} × {l.totalWeeks} weeks</Text>
                 </View>
                 <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.success800 }}>{F(l.paid)}</Text>
-                <StatusBadge status="Paid" />
-              </View>
+                <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.35)' }}>›</Text>
+              </TouchableOpacity>
             ))}
           </View>
         </>
       )}
+    </View>
+  );
+}
+
+// Week-by-week payment list for one loan; a spinner while the timeline is still loading.
+function PaymentHistory({ timeline }) {
+  return (
+    <View style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, ...cardShadowSm }}>
+      {!timeline && <ActivityIndicator color={colors.brandNavy} style={{ paddingVertical: 16 }} />}
+      {(timeline || []).map((w) => {
+        const map = { paid: [colors.success600, 'Paid'], missed: [colors.error600, 'Missed'], partial: [colors.brandPrimary600, 'Part paid'], pending: [colors.warning600, 'Pending'], upcoming: [colors.neutral300, 'Upcoming'] };
+        const [dot, label] = map[w.status];
+        return (
+          <View key={w.week} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
+            <View style={{ width: 9, height: 9, borderRadius: 9999, backgroundColor: dot }} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 14.5, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>Week {w.week}</Text>
+              {(w.payments || []).length === 1 && (
+                <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>Paid {w.payments[0].date}</Text>
+              )}
+              {(w.payments || []).length > 1 && w.payments.map((p, i) => (
+                <Text key={i} style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>{p.date} · {F(p.amount)}</Text>
+              ))}
+            </View>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', color: 'rgba(0,0,0,.87)' }}>{F(w.amount)}</Text>
+            <StatusBadge status={label} />
+          </View>
+        );
+      })}
     </View>
   );
 }

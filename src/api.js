@@ -49,6 +49,7 @@ export const api = {
     create: (data) => request('/customers', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, data) => request(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     collect: (id, amount, note) => request(`/customers/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount, note }) }),
+    pastLoan: (id, loanNo) => request(`/customers/${id}/loans/${loanNo}`),
     newLoan: (id, data) => request(`/customers/${id}/loans`, { method: 'POST', body: JSON.stringify(data) }),
   },
   expenses: {
