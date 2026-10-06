@@ -18,14 +18,17 @@ export function customerContactError({ name, phone }) {
   return null;
 }
 
-// Validates the add-customer form; returns the first problem as a toast message, or null.
-export function customerFormError({ name, phone, amt, weeks, total }) {
-  const contact = customerContactError({ name, phone });
-  if (contact) return contact;
+// Validates the loan fields (amount given, weeks, need to collect); returns a toast message or null.
+export function loanFormError({ amt, weeks, total }) {
   if (!num(amt)) return 'Amount is required';
   if (!num(weeks)) return 'Number of weeks is required';
   if (!num(total)) return 'Need to collect is required';
   if (num(total) < num(amt)) return 'Need to collect cannot be less than the amount';
   if (!weeklyFor(total, weeks)) return `₹${num(total)} ÷ ${num(weeks)} weeks isn't a whole weekly amount`;
   return null;
+}
+
+// Validates the add-customer form; returns the first problem as a toast message, or null.
+export function customerFormError(form) {
+  return customerContactError(form) || loanFormError(form);
 }

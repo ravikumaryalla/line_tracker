@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { api } from '../api';
 import { F, initials, tint } from '../format';
-import { digits, isPhone, customerContactError, customerFormError, weeklyFor } from '../validate';
+import { digits, isPhone, customerContactError, customerFormError, loanFormError, weeklyFor } from '../validate';
 import { colors, cardShadowSm, cardShadowMd, cardShadowLg } from '../tokens';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
@@ -52,6 +52,8 @@ export default function AdminApp({ user, onLogout }) {
   const [addForm, setAddForm] = useState(EMPTY_CUSTOMER);
   const [editFor, setEditFor] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', phone: '', nominee: '', photo: null, origPhoto: null, villageId: null });
+  const [loanFor, setLoanFor] = useState(null);
+  const [loanForm, setLoanForm] = useState({ amt: '', weeks: '', total: '' });
   const [range, setRange] = useState('This month');
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN);
@@ -179,6 +181,32 @@ export default function AdminApp({ user, onLogout }) {
     if (screen === 'detail' && selectedId === editFor) await loadDetail(selectedId);
     closeEdit();
     flash('Customer updated');
+  };
+
+  // Give a customer who has cleared their loan a new one; the form starts from the previous loan's terms.
+  const openNewLoan = (c) => {
+    setLoanFor(c);
+    setLoanForm({ amt: String(c.given), weeks: String(c.totalWeeks), total: String(c.weekly * c.totalWeeks) });
+  };
+
+  const saveNewLoan = async () => {
+    const err = loanFormError(loanForm);
+    if (err) { flash(err); return; }
+    const c = loanFor;
+    setSaving(true);
+    try {
+      await api.customers.newLoan(c.id, {
+        given: parseInt(loanForm.amt, 10), weekly: weeklyFor(loanForm.total, loanForm.weeks), weeks: parseInt(loanForm.weeks, 10),
+      });
+      await loadAll();
+      if (screen === 'detail' && selectedId === c.id) await loadDetail(selectedId);
+      setLoanFor(null);
+      flash(`New loan of ${F(parseInt(loanForm.amt, 10))} given to ${c.name.split(' ')[0]}`);
+    } catch (e) {
+      flash(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ---- Villages ----
@@ -450,7 +478,7 @@ export default function AdminApp({ user, onLogout }) {
         )}
 
         {screen === 'detail' && detail && (
-          <DetailScreen customer={detail} onBack={() => go(prevScreen)} onCollect={() => openCollect(detail.id)} onEdit={() => openEdit(detail)} />
+          <DetailScreen customer={detail} onBack={() => go(prevScreen)} onCollect={() => openCollect(detail.id)} onEdit={() => openEdit(detail)} onNewLoan={() => openNewLoan(detail)} />
         )}
 
         {screen === 'addCustomer' && (
@@ -483,22 +511,7 @@ export default function AdminApp({ user, onLogout }) {
                   radius={9999}
                 />
               </Field>
-              <Field label="Amount given" required>
-                <TextInput value={addForm.amt} onChangeText={(t) => setAddForm((f) => ({ ...f, amt: t.replace(/[^0-9]/g, '') }))} placeholder="₹ 10,000" keyboardType="numeric" style={{ ...inputStyle, fontSize: 20, fontWeight: '700', color: colors.brandNavy }} />
-              </Field>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Field label="No. of weeks" required>
-                    <TextInput value={addForm.weeks} onChangeText={(t) => setAddForm((f) => ({ ...f, weeks: t.replace(/[^0-9]/g, '') }))} placeholder="12" keyboardType="numeric" style={{ ...inputStyle, fontWeight: '600' }} />
-                  </Field>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Need to collect" required>
-                    <TextInput value={addForm.total} onChangeText={(t) => setAddForm((f) => ({ ...f, total: t.replace(/[^0-9]/g, '') }))} placeholder="₹ 12,000" keyboardType="numeric" style={{ ...inputStyle, fontWeight: '600' }} />
-                  </Field>
-                </View>
-              </View>
-              <WeeklyHint total={addForm.total} weeks={addForm.weeks} />
+              <LoanFields form={addForm} setForm={setAddForm} />
               <TouchableOpacity onPress={saveCustomer} style={{ alignItems: 'center', backgroundColor: colors.brandNavy, borderRadius: 10, padding: 15, ...cardShadowLg }}>
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Save &amp; create schedule</Text>
               </TouchableOpacity>
@@ -886,6 +899,17 @@ export default function AdminApp({ user, onLogout }) {
         </View>
       </BottomSheet>
 
+      <BottomSheet visible={!!loanFor} onClose={() => setLoanFor(null)}>
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700' }}>Give new loan</Text>
+          <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.55)', marginTop: -6 }}>{loanFor?.name} · previous loan cleared. Weeks start again from week 1.</Text>
+          <LoanFields form={loanForm} setForm={setLoanForm} />
+          <TouchableOpacity onPress={saveNewLoan} disabled={saving} style={{ alignItems: 'center', backgroundColor: colors.brandNavy, borderRadius: 10, padding: 15, opacity: saving ? 0.7 : 1 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{saving ? 'Saving…' : 'Give loan & create schedule'}</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
+
       <BottomSheet visible={!!editFor} onClose={closeEdit}>
         <View style={{ gap: 12 }}>
           <Text style={{ fontSize: 18, fontWeight: '700' }}>Edit customer</Text>
@@ -923,7 +947,8 @@ export default function AdminApp({ user, onLogout }) {
   );
 }
 
-function DetailScreen({ customer: d, onBack, onCollect, onEdit }) {
+function DetailScreen({ customer: d, onBack, onCollect, onEdit, onNewLoan }) {
+  const closedIn = d.lastPaidWeek || d.weeksPaid;
   return (
     <View style={{ padding: 16, gap: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -947,14 +972,24 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit }) {
           <DetailTile label="Paid so far" value={F(d.paid)} color={colors.success800} />
           <DetailTile label="Still to pay" value={F(d.remaining)} color={colors.warning900} />
         </View>
-        <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 14 }}>{d.weeksPaid} of {d.totalWeeks} weeks paid{d.isDone && d.weeksPaid < d.totalWeeks ? ' · finished early' : ''}</Text>
-        {!d.isDone && (
+        {d.isDone ? (
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.success800, marginTop: 14 }}>
+            Loan cleared · paid in {closedIn} week{closedIn === 1 ? '' : 's'}{closedIn < d.totalWeeks ? ` of ${d.totalWeeks}` : ''}
+          </Text>
+        ) : (
+          <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.6)', marginTop: 14 }}>{d.weeksPaid} of {d.totalWeeks} weeks paid</Text>
+        )}
+        {d.isDone ? (
+          <TouchableOpacity onPress={onNewLoan} style={{ marginTop: 16, alignItems: 'center', backgroundColor: colors.brandNavy, borderRadius: 10, padding: 15, ...cardShadowLg }}>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Give new loan</Text>
+          </TouchableOpacity>
+        ) : (
           <TouchableOpacity onPress={onCollect} style={{ marginTop: 16, alignItems: 'center', backgroundColor: colors.brandPrimary600, borderRadius: 10, padding: 15, ...cardShadowLg }}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Collect {F(d.weekly)}</Text>
           </TouchableOpacity>
         )}
       </View>
-      <Text style={{ fontSize: 15, fontWeight: '600' }}>Payment history</Text>
+      <Text style={{ fontSize: 15, fontWeight: '600' }}>{d.loanNo > 1 ? `Loan ${d.loanNo} · payment history` : 'Payment history'}</Text>
       <View style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, ...cardShadowSm }}>
         {!d.timeline && <ActivityIndicator color={colors.brandNavy} style={{ paddingVertical: 16 }} />}
         {(d.timeline || []).map((w) => {
@@ -978,6 +1013,23 @@ function DetailScreen({ customer: d, onBack, onCollect, onEdit }) {
           );
         })}
       </View>
+      {!!d.pastLoans?.length && (
+        <>
+          <Text style={{ fontSize: 15, fontWeight: '600' }}>Past loans</Text>
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, ...cardShadowSm }}>
+            {d.pastLoans.map((l) => (
+              <View key={l.loanNo} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral100 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 14.5, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>Loan {l.loanNo} · given {F(l.given)}</Text>
+                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', marginTop: 1 }}>{l.startedAt} – {l.closedAt} · {F(l.weekly)} × {l.totalWeeks} weeks</Text>
+                </View>
+                <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.success800 }}>{F(l.paid)}</Text>
+                <StatusBadge status="Paid" />
+              </View>
+            ))}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -988,7 +1040,7 @@ function CustomerRow({ c, i, onOpen, onCollect }) {
       <TouchableOpacity onPress={onOpen}><Avatar name={c.name} i={i} /></TouchableOpacity>
       <TouchableOpacity onPress={onOpen} style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ fontSize: 15.5, fontWeight: '600', color: 'rgba(0,0,0,.87)' }}>{c.name}</Text>
-        <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{[`Week ${c.currentWeek} of ${c.totalWeeks}`, c.village].filter(Boolean).join(' · ')}</Text>
+        <Text style={{ fontSize: 12.5, color: 'rgba(0,0,0,.55)', marginTop: 1 }}>{[c.isDone ? 'Loan cleared' : `Week ${c.currentWeek} of ${c.totalWeeks}`, c.village].filter(Boolean).join(' · ')}</Text>
       </TouchableOpacity>
       {c.isDone && !c.isPaidToday ? (
         <View style={{ backgroundColor: colors.success50, borderRadius: 9999, paddingVertical: 4, paddingHorizontal: 10 }}>
@@ -1031,6 +1083,31 @@ function StatusBadge({ status }) {
     <View style={{ borderRadius: 9999, paddingVertical: 3, paddingHorizontal: 9, backgroundColor: bg }}>
       <Text style={{ fontSize: 11, fontWeight: '600', color: fg }}>{status}</Text>
     </View>
+  );
+}
+
+// Amount given / weeks / need to collect inputs, shared by Add customer and Give new loan.
+function LoanFields({ form, setForm }) {
+  const set = (key) => (t) => setForm((f) => ({ ...f, [key]: t.replace(/[^0-9]/g, '') }));
+  return (
+    <>
+      <Field label="Amount given" required>
+        <TextInput value={form.amt} onChangeText={set('amt')} placeholder="₹ 10,000" keyboardType="numeric" style={{ ...inputStyle, fontSize: 20, fontWeight: '700', color: colors.brandNavy }} />
+      </Field>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <Field label="No. of weeks" required>
+            <TextInput value={form.weeks} onChangeText={set('weeks')} placeholder="12" keyboardType="numeric" style={{ ...inputStyle, fontWeight: '600' }} />
+          </Field>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field label="Need to collect" required>
+            <TextInput value={form.total} onChangeText={set('total')} placeholder="₹ 12,000" keyboardType="numeric" style={{ ...inputStyle, fontWeight: '600' }} />
+          </Field>
+        </View>
+      </View>
+      <WeeklyHint total={form.total} weeks={form.weeks} />
+    </>
   );
 }
 
