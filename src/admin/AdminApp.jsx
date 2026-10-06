@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { api } from '../api';
 import { F, initials, tint } from '../format';
@@ -32,6 +32,8 @@ export default function AdminApp({ user, onLogout }) {
   const [screen, setScreen] = useState('dashboard');
   const [prevScreen, setPrevScreen] = useState('customers');
   const [summary, setSummary] = useState(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [week, setWeek] = useState(null);
   const [villages, setVillages] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -70,9 +72,13 @@ export default function AdminApp({ user, onLogout }) {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
 
+  // A failed week doesn't block the rest of the app; the weekly section just keeps its spinner.
+  const loadWeek = (offset) => api.dashboard.week(offset).then(setWeek).catch((e) => flash(e.message));
+
   const loadAll = () =>
     Promise.all([
       api.dashboard.summary().then(setSummary),
+      loadWeek(weekOffset),
       api.villages.list().then(setVillages),
       api.customers.list().then(setCustomers),
       api.expenses.list().then(setExpenses),
@@ -84,6 +90,12 @@ export default function AdminApp({ user, onLogout }) {
   const loadDetail = (id) => api.customers.get(id).then(setDetail).catch((e) => flash(e.message));
 
   useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
+  // The first load comes from loadAll; afterwards the ‹ › arrows fetch the chosen week.
+  const weekMounted = useRef(false);
+  useEffect(() => {
+    if (weekMounted.current) loadWeek(weekOffset);
+    weekMounted.current = true;
+  }, [weekOffset]);
 
   const go = (s) => { setScreen(s); setCollectFor(null); setAmt(''); };
   const activeTab = PARENT_TAB[screen] || (MORE_SCREENS.includes(screen) ? 'more' : screen);
@@ -324,7 +336,7 @@ export default function AdminApp({ user, onLogout }) {
   if (loading || !summary) return <Centered><ActivityIndicator color={colors.brandNavy} /></Centered>;
 
   const maxVillage = Math.max(1, ...villages.map((v) => v.given));
-  const maxBar = Math.max(1, ...summary.weekBars.map((b) => b.amount));
+  const maxDay = Math.max(1, ...(week?.days || []).map((b) => b.amount));
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
@@ -343,6 +355,7 @@ export default function AdminApp({ user, onLogout }) {
       >
         {screen === 'dashboard' && (
           <View style={{ padding: 16, gap: 14 }}>
+            <SectionTitle>Lifetime</SectionTitle>
             <View style={{ backgroundColor: colors.brandNavy, borderRadius: 12, padding: 18, ...cardShadowLg }}>
               <Text style={{ fontSize: 11.5, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,.6)' }}>Money outside right now</Text>
               <Text style={{ fontSize: 38, fontWeight: '700', color: '#fff', marginTop: 6 }}>{F(summary.outside)}</Text>
@@ -357,31 +370,60 @@ export default function AdminApp({ user, onLogout }) {
                 </View>
               </View>
             </View>
-
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-              <DashTile label="Today's collection" value={F(summary.todayCollected)} sub={`of ${F(summary.todayExpected)} expected`} color={colors.success800} />
-              <DashTile label="This week" value={F(summary.weekTotal)} sub="last 7 days" />
-              <DashTile label="Pending now" value={F(summary.pendingNow)} sub="unpaid today" color={colors.warning900} />
-              <DashTile label="Customers" value={String(summary.customerCount)} sub={`${summary.villageCount} villages`} />
-              <DashTile label="Expenses" value={F(summary.expenses)} sub="this month" />
-              <DashTile label="Losses" value={F(summary.losses)} sub={`${summary.lossCount} customers`} color={colors.error800} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <DashTile width="31%" label="Customers" value={String(summary.customerCount)} sub={`${summary.villageCount} villages`} />
+              <DashTile width="31%" label="Expenses" value={F(summary.expenses)} sub="all time" />
+              <DashTile width="31%" label="Losses" value={F(summary.losses)} sub={`${summary.lossCount} customers`} color={colors.error800} />
             </View>
 
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 15, fontWeight: '600' }}>Collection last 7 days</Text>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.brandNavy }}>{F(summary.weekTotal)}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 110, marginTop: 16 }}>
-                {summary.weekBars.map((b, i) => (
-                  <View key={i} style={{ flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(0,0,0,.5)' }}>{b.amount ? Math.round(b.amount / 1000) + 'k' : '—'}</Text>
-                    <View style={{ width: '100%', borderRadius: 4, minHeight: 4, height: `${Math.round((b.amount / maxBar) * 100)}%`, backgroundColor: b.amount ? colors.brandPrimary600 : colors.neutral200 }} />
-                    <Text style={{ fontSize: 10.5, fontWeight: '600', color: 'rgba(0,0,0,.6)' }}>{b.day}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <View style={{ flex: 1 }}><SectionTitle>Weekly</SectionTitle></View>
+              <TouchableOpacity onPress={() => setWeekOffset((o) => o + 1)} style={{ paddingHorizontal: 10, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>‹</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 13.5, fontWeight: '600', color: 'rgba(0,0,0,.75)', minWidth: 110, textAlign: 'center' }}>
+                {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Last week' : week?.offset === weekOffset ? week.label : '…'}
+              </Text>
+              <TouchableOpacity disabled={weekOffset === 0} onPress={() => setWeekOffset((o) => Math.max(0, o - 1))} style={{ paddingHorizontal: 10, paddingVertical: 2, opacity: weekOffset === 0 ? 0.25 : 1 }}>
+                <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>›</Text>
+              </TouchableOpacity>
+            </View>
+            {!week || week.offset !== weekOffset ? (
+              <ActivityIndicator color={colors.brandNavy} style={{ paddingVertical: 24 }} />
+            ) : (
+              <>
+                <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', fontWeight: '500' }}>{week.label} · collected</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                    <Text style={{ fontSize: 30, fontWeight: '700', color: colors.success800 }}>{F(week.collected)}</Text>
+                    {week.expected > 0 && <Text style={{ fontSize: 16, fontWeight: '500', color: 'rgba(0,0,0,.45)' }}>/ {F(week.expected)} expected</Text>}
                   </View>
-                ))}
-              </View>
-            </View>
+                  {week.expected > 0 && (
+                    <View style={{ height: 8, borderRadius: 9999, backgroundColor: colors.neutral200, marginTop: 10, overflow: 'hidden' }}>
+                      <View style={{ height: '100%', borderRadius: 9999, backgroundColor: colors.success600, width: `${Math.min(100, Math.round((week.collected / week.expected) * 100))}%` }} />
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 110, marginTop: 16 }}>
+                    {week.days.map((b) => (
+                      <View key={b.day} style={{ flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(0,0,0,.5)' }}>{b.amount ? Math.round(b.amount / 1000) + 'k' : '—'}</Text>
+                        <View style={{ width: '100%', borderRadius: 4, minHeight: 4, height: `${Math.round((b.amount / maxDay) * 100)}%`, backgroundColor: b.amount ? (b.isToday ? colors.brandNavy : colors.brandPrimary600) : colors.neutral200 }} />
+                        <Text style={{ fontSize: 10.5, fontWeight: b.isToday ? '800' : '600', color: b.isToday ? colors.brandNavy : 'rgba(0,0,0,.6)' }}>{b.day}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {weekOffset === 0 && <DashTile label="Today's collection" value={F(summary.todayCollected)} sub={`of ${F(summary.todayExpected)} expected`} color={colors.success800} />}
+                  <DashTile label="Still to collect" value={F(Math.max(0, week.expected - week.collected))} sub={week.expected ? `of ${F(week.expected)} expected` : 'nothing due this week'} color={colors.warning900} />
+                  <DashTile label="Given out" value={F(week.given)} sub={`${week.loansGiven} loan${week.loansGiven === 1 ? '' : 's'}`} />
+                  <DashTile label="New customers" value={String(week.newCustomers)} sub="added in the week" />
+                  <DashTile label="Loans cleared" value={String(week.loansCleared)} sub="fully paid" color={colors.success800} />
+                  <DashTile label="Expenses" value={F(week.expenses)} sub="in the week" />
+                  <DashTile label="Losses" value={F(week.losses)} sub="recorded in the week" color={colors.error800} />
+                </View>
+              </>
+            )}
 
             <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
               <Text style={{ fontSize: 15, fontWeight: '600' }}>Village comparison</Text>
@@ -390,7 +432,7 @@ export default function AdminApp({ user, onLogout }) {
                   <View key={v.name}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ fontSize: 13, fontWeight: '500', color: 'rgba(0,0,0,.75)' }}>{v.name}</Text>
-                      <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.5)' }}>{Math.round(v.given / 1000)}k / {Math.round(v.given / 1000)}k</Text>
+                      <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.5)' }}>{Math.round(v.collected / 1000)}k / {Math.round(v.given / 1000)}k</Text>
                     </View>
                     <View style={{ height: 8, borderRadius: 9999, backgroundColor: colors.neutral200, marginTop: 6, overflow: 'hidden' }}>
                       <View style={{ height: '100%', borderRadius: 9999, backgroundColor: colors.brandPrimary600, width: `${Math.round((v.given / maxVillage) * 100)}%` }} />
@@ -1171,13 +1213,17 @@ function WeeklyHint({ total, weeks }) {
   );
 }
 
+function SectionTitle({ children }) {
+  return <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(0,0,0,.5)' }}>{children}</Text>;
+}
+
 function Centered({ children }) {
   return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>{children}</View>;
 }
 
-function DashTile({ label, value, sub, color }) {
+function DashTile({ label, value, sub, color, width = '47%' }) {
   return (
-    <View style={{ width: '47%', backgroundColor: '#fff', borderRadius: 10, padding: 14, ...cardShadowSm }}>
+    <View style={{ width, backgroundColor: '#fff', borderRadius: 10, padding: 14, ...cardShadowSm }}>
       <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.55)', fontWeight: '500' }}>{label}</Text>
       <Text style={{ fontSize: 21, fontWeight: '700', marginTop: 3, color: color || 'rgba(0,0,0,.87)' }}>{value}</Text>
       <Text style={{ fontSize: 11.5, color: 'rgba(0,0,0,.45)', marginTop: 2 }}>{sub}</Text>

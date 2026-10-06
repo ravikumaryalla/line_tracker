@@ -62,5 +62,6 @@ export const api = {
   },
   dashboard: {
     summary: () => request('/dashboard/summary'),
+    week: (offset = 0) => request(`/dashboard/week?offset=${offset}`),
   },
 };
