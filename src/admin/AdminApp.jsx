@@ -34,6 +34,8 @@ export default function AdminApp({ user, onLogout }) {
   const [summary, setSummary] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [week, setWeek] = useState(null);
+  const [weekBusy, setWeekBusy] = useState(false);
+  const [endWeekOpen, setEndWeekOpen] = useState(false);
   const [villages, setVillages] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -85,6 +87,20 @@ export default function AdminApp({ user, onLogout }) {
       api.losses.list().then(setLosses),
       api.users.list().then(setUsers),
     ]);
+
+  // Start a week when none is running, otherwise end the running one; then show the latest week.
+  const toggleWeek = async () => {
+    const ending = week?.running;
+    setWeekBusy(true);
+    try {
+      await (ending ? api.dashboard.endWeek() : api.dashboard.startWeek());
+      setEndWeekOpen(false);
+      flash(ending ? 'Week ended' : 'Week started');
+      if (weekOffset === 0) await loadWeek(0);
+      else setWeekOffset(0);
+    } catch (e) { flash(e.message); }
+    finally { setWeekBusy(false); }
+  };
 
   // The list endpoint has no payment timeline, so the detail screen loads the full record.
   const loadDetail = (id) => api.customers.get(id).then(setDetail).catch((e) => flash(e.message));
@@ -378,23 +394,49 @@ export default function AdminApp({ user, onLogout }) {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
               <View style={{ flex: 1 }}><SectionTitle>Weekly</SectionTitle></View>
-              <TouchableOpacity onPress={() => setWeekOffset((o) => o + 1)} style={{ paddingHorizontal: 10, paddingVertical: 2 }}>
-                <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>‹</Text>
-              </TouchableOpacity>
-              <Text style={{ fontSize: 13.5, fontWeight: '600', color: 'rgba(0,0,0,.75)', minWidth: 110, textAlign: 'center' }}>
-                {weekOffset === 0 ? 'This week' : weekOffset === 1 ? 'Last week' : week?.offset === weekOffset ? week.label : '…'}
-              </Text>
-              <TouchableOpacity disabled={weekOffset === 0} onPress={() => setWeekOffset((o) => Math.max(0, o - 1))} style={{ paddingHorizontal: 10, paddingVertical: 2, opacity: weekOffset === 0 ? 0.25 : 1 }}>
-                <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>›</Text>
-              </TouchableOpacity>
+              {week && !week.none && (
+                <>
+                  <TouchableOpacity disabled={weekOffset + 1 >= week.total} onPress={() => setWeekOffset((o) => o + 1)} style={{ paddingHorizontal: 10, paddingVertical: 2, opacity: weekOffset + 1 >= week.total ? 0.25 : 1 }}>
+                    <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>‹</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 13.5, fontWeight: '600', color: 'rgba(0,0,0,.75)', minWidth: 80, textAlign: 'center' }}>
+                    {week.offset === weekOffset ? `Week ${week.number}` : '…'}
+                  </Text>
+                  <TouchableOpacity disabled={weekOffset === 0} onPress={() => setWeekOffset((o) => Math.max(0, o - 1))} style={{ paddingHorizontal: 10, paddingVertical: 2, opacity: weekOffset === 0 ? 0.25 : 1 }}>
+                    <Text style={{ fontSize: 22, color: 'rgba(0,0,0,.6)' }}>›</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
-            {!week || week.offset !== weekOffset ? (
+            {week && (week.none || (weekOffset === 0 && week.offset === 0)) && (
+              <TouchableOpacity
+                disabled={weekBusy}
+                onPress={() => (week.running ? setEndWeekOpen(true) : toggleWeek())}
+                style={{ alignItems: 'center', borderRadius: 10, padding: 13, backgroundColor: week.running ? colors.error800 : colors.brandNavy, opacity: weekBusy ? 0.6 : 1 }}
+              >
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{week.running ? 'End week' : 'Start week'}</Text>
+              </TouchableOpacity>
+            )}
+            {!week || (!week.none && week.offset !== weekOffset) ? (
               <ActivityIndicator color={colors.brandNavy} style={{ paddingVertical: 24 }} />
+            ) : week.none ? (
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
+                <Text style={{ fontSize: 15, fontWeight: '600' }}>No week started yet</Text>
+                <Text style={{ fontSize: 13, color: 'rgba(0,0,0,.55)', marginTop: 4, lineHeight: 19 }}>
+                  Tap Start week when collection begins and End week when it is done. Everything in between is that week's report.
+                </Text>
+              </View>
             ) : (
               <>
                 <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16, ...cardShadowSm }}>
-                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', fontWeight: '500' }}>{week.label} · collected</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ flex: 1, fontSize: 12, color: 'rgba(0,0,0,.5)', fontWeight: '500' }}>
+                      {weekTime(week.startedAt)} – {week.endedAt ? weekTime(week.endedAt) : 'now'} · {week.dayCount} day{week.dayCount === 1 ? '' : 's'}
+                    </Text>
+                    {week.running && <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.success800 }}>● running</Text>}
+                  </View>
+                  <Text style={{ fontSize: 12, color: 'rgba(0,0,0,.5)', fontWeight: '500', marginTop: 8 }}>Collected</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
                     <Text style={{ fontSize: 30, fontWeight: '700', color: colors.success800 }}>{F(week.collected)}</Text>
                     {week.expected > 0 && <Text style={{ fontSize: 16, fontWeight: '500', color: 'rgba(0,0,0,.45)' }}>/ {F(week.expected)} expected</Text>}
                   </View>
@@ -403,18 +445,25 @@ export default function AdminApp({ user, onLogout }) {
                       <View style={{ height: '100%', borderRadius: 9999, backgroundColor: colors.success600, width: `${Math.min(100, Math.round((week.collected / week.expected) * 100))}%` }} />
                     </View>
                   )}
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 110, marginTop: 16 }}>
-                    {week.days.map((b) => (
-                      <View key={b.day} style={{ flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(0,0,0,.5)' }}>{b.amount ? Math.round(b.amount / 1000) + 'k' : '—'}</Text>
-                        <View style={{ width: '100%', borderRadius: 4, minHeight: 4, height: `${Math.round((b.amount / maxDay) * 100)}%`, backgroundColor: b.amount ? (b.isToday ? colors.brandNavy : colors.brandPrimary600) : colors.neutral200 }} />
-                        <Text style={{ fontSize: 10.5, fontWeight: b.isToday ? '800' : '600', color: b.isToday ? colors.brandNavy : 'rgba(0,0,0,.6)' }}>{b.day}</Text>
-                      </View>
-                    ))}
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: week.days.length > 7 ? 3 : 8, height: 110, marginTop: 16 }}>
+                    {week.days.map((b, i) => {
+                      // Long weeks get thin bars, so only every few days is labelled.
+                      const long = week.days.length > 7;
+                      const labelled = !long || i % Math.ceil(week.days.length / 7) === 0;
+                      return (
+                        <View key={b.date} style={{ flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                          {!long && <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(0,0,0,.5)' }}>{b.amount ? Math.round(b.amount / 1000) + 'k' : '—'}</Text>}
+                          <View style={{ width: '100%', borderRadius: 4, minHeight: 4, height: `${Math.round((b.amount / maxDay) * 100)}%`, backgroundColor: b.amount ? (b.isToday ? colors.brandNavy : colors.brandPrimary600) : colors.neutral200 }} />
+                          <Text numberOfLines={1} style={{ fontSize: 10.5, fontWeight: b.isToday ? '800' : '600', color: b.isToday ? colors.brandNavy : 'rgba(0,0,0,.6)' }}>
+                            {labelled ? (long ? b.date.slice(0, 2) : b.day) : ' '}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                  {weekOffset === 0 && <DashTile label="Today's collection" value={F(summary.todayCollected)} sub={`of ${F(summary.todayExpected)} expected`} color={colors.success800} />}
+                  {week.running && <DashTile label="Today's collection" value={F(summary.todayCollected)} sub={`of ${F(summary.todayExpected)} expected`} color={colors.success800} />}
                   <DashTile label="Still to collect" value={F(Math.max(0, week.expected - week.collected))} sub={week.expected ? `of ${F(week.expected)} expected` : 'nothing due this week'} color={colors.warning900} />
                   <DashTile label="Given out" value={F(week.given)} sub={`${week.loansGiven} loan${week.loansGiven === 1 ? '' : 's'}`} />
                   <DashTile label="New customers" value={String(week.newCustomers)} sub="added in the week" />
@@ -921,6 +970,21 @@ export default function AdminApp({ user, onLogout }) {
         </View>
       </BottomSheet>
 
+      <BottomSheet visible={endWeekOpen} onClose={() => setEndWeekOpen(false)}>
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700' }}>End week {week?.number}?</Text>
+          <Text style={{ fontSize: 14, color: 'rgba(0,0,0,.6)', lineHeight: 20 }}>
+            The week closes now. Collections made after this are not counted in any week until you start the next one.
+          </Text>
+          <TouchableOpacity disabled={weekBusy} onPress={toggleWeek} style={{ alignItems: 'center', backgroundColor: colors.error800, borderRadius: 10, padding: 15, opacity: weekBusy ? 0.6 : 1 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>End week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setEndWeekOpen(false)} style={{ alignItems: 'center', borderRadius: 10, padding: 13 }}>
+            <Text style={{ color: 'rgba(0,0,0,.6)', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
+
       <BottomSheet visible={!!deleteUser} onClose={() => setDeleteUser(null)}>
         <View style={{ gap: 12 }}>
           <Text style={{ fontSize: 18, fontWeight: '700' }}>Delete {deleteUser?.name}?</Text>
@@ -1211,6 +1275,14 @@ function WeeklyHint({ total, weeks }) {
         : <Text style={{ fontSize: 13.5, fontWeight: '600', color: colors.warning900 }}>Doesn't divide evenly</Text>}
     </View>
   );
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// "07 Oct 10:15" in the phone's local time.
+function weekTime(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function SectionTitle({ children }) {
